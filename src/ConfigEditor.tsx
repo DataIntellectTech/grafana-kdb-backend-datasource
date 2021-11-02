@@ -1,83 +1,116 @@
 import React, { ChangeEvent, PureComponent } from 'react';
-import { LegacyForms } from '@grafana/ui';
+import { LegacyForms} from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
 import { MyDataSourceOptions, MySecureJsonData } from './types';
 
-const { SecretFormField, FormField } = LegacyForms;
+const { FormField } = LegacyForms;
 
 interface Props extends DataSourcePluginOptionsEditorProps<MyDataSourceOptions> {}
 
 interface State {}
 
 export class ConfigEditor extends PureComponent<Props, State> {
-  onPathChange = (event: ChangeEvent<HTMLInputElement>) => {
+
+
+
+  onHostChange = (event: ChangeEvent<HTMLInputElement>) => {
+
     const { onOptionsChange, options } = this.props;
     const jsonData = {
       ...options.jsonData,
-      path: event.target.value,
+      host: event.target.value,
     };
     onOptionsChange({ ...options, jsonData });
-  };
+  }
 
-  // Secure field (only sent to the backend)
-  onAPIKeyChange = (event: ChangeEvent<HTMLInputElement>) => {
+  onPortChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { onOptionsChange, options } = this.props;
+    const jsonData = {
+      ...options.jsonData,
+      port: event.target.value,
+    };
+    onOptionsChange({ ...options, jsonData });
+  }
+
+  onUsernameChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const { onOptionsChange, options } = this.props;
+    const { secureJsonData } = options;
     onOptionsChange({
       ...options,
       secureJsonData: {
-        apiKey: event.target.value,
+        ...secureJsonData,
+        username: event.target.value,
       },
     });
   };
 
-  onResetAPIKey = () => {
+  onPasswordChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { onOptionsChange, options } = this.props;
+    const { secureJsonData } = options;
     onOptionsChange({
       ...options,
-      secureJsonFields: {
-        ...options.secureJsonFields,
-        apiKey: false,
-      },
       secureJsonData: {
-        ...options.secureJsonData,
-        apiKey: '',
+        ...secureJsonData,
+        password: event.target.value,
       },
     });
   };
 
   render() {
     const { options } = this.props;
-    const { jsonData, secureJsonFields } = options;
+    const { jsonData } = options;
     const secureJsonData = (options.secureJsonData || {}) as MySecureJsonData;
-
+    console.log(this.props);
     return (
-      <div className="gf-form-group">
-        <div className="gf-form">
-          <FormField
-            label="Path"
-            labelWidth={6}
-            inputWidth={20}
-            onChange={this.onPathChange}
-            value={jsonData.path || ''}
-            placeholder="json field returned to frontend"
-          />
-        </div>
+        <div className="gf-form-group">
 
-        <div className="gf-form-inline">
           <div className="gf-form">
-            <SecretFormField
-              isConfigured={(secureJsonFields && secureJsonFields.apiKey) as boolean}
-              value={secureJsonData.apiKey || ''}
-              label="API Key"
-              placeholder="secure json field (backend only)"
-              labelWidth={6}
-              inputWidth={20}
-              onReset={this.onResetAPIKey}
-              onChange={this.onAPIKeyChange}
+            <FormField
+                label="Host"
+                labelWidth={6}
+                inputWidth={20}
+                onChange={this.onHostChange}
+                value={jsonData.host || ''}
+                placeholder="json field returned to frontend"
             />
           </div>
+          <div className="gf-form">
+            <FormField
+                label="Port"
+                labelWidth={6}
+                inputWidth={20}
+                onChange={this.onPortChange}
+                value={jsonData.port || ''}
+                placeholder="json field returned to frontend"
+            />
+          </div>
+
+          <div className="gf-form">
+            <FormField
+                label="Username"
+
+                labelWidth={6}
+                inputWidth={20}
+                onChange={this.onUsernameChange}
+                value={secureJsonData.username || ''}
+                placeholder="json field returned to frontend"
+            />
+          </div>
+
+          <div className="gf-form">
+            <FormField
+                label="Password"
+
+                labelWidth={6}
+                inputWidth={20}
+                onChange={this.onPasswordChange}
+                value={secureJsonData.password || ''}
+                placeholder="json field returned to frontend"
+            />
+          </div>
+
+
         </div>
-      </div>
     );
   }
 }
