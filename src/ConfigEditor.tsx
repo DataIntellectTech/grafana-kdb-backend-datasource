@@ -30,7 +30,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
     if((/^\d+$/.test(event.target.value) || event.target.value==="")){
       const jsonData = {
         ...options.jsonData,
-        port: event.target.value,
+        port: parseInt(event.target.value),
       };
       onOptionsChange({ ...options, jsonData });
     }
