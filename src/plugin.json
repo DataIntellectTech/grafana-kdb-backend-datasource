@@ -6,6 +6,7 @@
   "metrics": true,
   "backend": true,
   "executable": "gpx_kdb-backend-datasource",
+  "alerting": true,
   "info": {
     "description": "KBD Datasource",
     "author": {
