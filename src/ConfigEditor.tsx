@@ -20,16 +20,20 @@ export class ConfigEditor extends PureComponent<Props, State> {
       ...options.jsonData,
       host: event.target.value,
     };
+    // @ts-ignore
     onOptionsChange({ ...options, jsonData });
   }
 
   onPortChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { onOptionsChange, options } = this.props;
-    const jsonData = {
-      ...options.jsonData,
-      port: event.target.value,
-    };
-    onOptionsChange({ ...options, jsonData });
+
+    if((/^\d+$/.test(event.target.value) || event.target.value==="")){
+      const jsonData = {
+        ...options.jsonData,
+        port: event.target.value,
+      };
+      onOptionsChange({ ...options, jsonData });
+    }
   }
 
   onUsernameChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -88,7 +92,6 @@ export class ConfigEditor extends PureComponent<Props, State> {
           <div className="gf-form">
             <FormField
                 label="Username"
-
                 labelWidth={6}
                 inputWidth={20}
                 onChange={this.onUsernameChange}
