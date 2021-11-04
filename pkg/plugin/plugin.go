@@ -163,8 +163,25 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 func (d *SampleDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	log.DefaultLogger.Info("CheckHealth called", "request", req)
 
+	test, err := d.kdbHandle.Call("{1+1}", kdb.Int(21))
+	if err != nil {
+		log.DefaultLogger.Info(err.Error())
+		return nil, err
+	}
+	log.DefaultLogger.Info(test.String())
+	log.DefaultLogger.Info("test")
+
 	var status = backend.HealthStatusOk
 	var message = "Data source is working " + d.Host
+	if test.String() == "2" {
+		status = backend.HealthStatusOk
+		message = "kdb connected succesfully"
+
+	} else {
+		status = backend.HealthStatusError
+		message = "kdb connection failed"
+
+	}
 
 	return &backend.CheckHealthResult{
 		Status:  status,
