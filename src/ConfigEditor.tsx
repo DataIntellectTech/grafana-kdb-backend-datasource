@@ -3,7 +3,7 @@ import { LegacyForms} from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
 import { MyDataSourceOptions, MySecureJsonData } from './types';
 
-const { FormField } = LegacyForms;
+const { FormField, SecretFormField } = LegacyForms;
 
 interface Props extends DataSourcePluginOptionsEditorProps<MyDataSourceOptions> {}
 
@@ -48,6 +48,21 @@ export class ConfigEditor extends PureComponent<Props, State> {
     });
   };
 
+  onResetUsername = () => {
+    const { onOptionsChange, options } = this.props;
+    onOptionsChange({
+      ...options,
+      secureJsonFields: {
+        ...options.secureJsonFields,
+        username: false,
+      },
+      secureJsonData: {
+        ...options.secureJsonData,
+        username: '',
+      },
+    });
+  };
+
   onPasswordChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { onOptionsChange, options } = this.props;
     const { secureJsonData } = options;
@@ -60,9 +75,25 @@ export class ConfigEditor extends PureComponent<Props, State> {
     });
   };
 
+  onResetPassword = () => {
+    const { onOptionsChange, options } = this.props;
+    onOptionsChange({
+      ...options,
+      secureJsonFields: {
+        ...options.secureJsonFields,
+        password: false,
+      },
+      secureJsonData: {
+        ...options.secureJsonData,
+        password: '',
+      },
+    });
+  };
+
+
   render() {
     const { options } = this.props;
-    const { jsonData } = options;
+    const { jsonData, secureJsonFields } = options;
     const secureJsonData = (options.secureJsonData || {}) as MySecureJsonData;
 
     return (
@@ -75,7 +106,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
                 inputWidth={20}
                 onChange={this.onHostChange}
                 value={jsonData.host || ''}
-                placeholder="json field returned to frontend"
+                placeholder="Please enter host URL"
             />
           </div>
           <div className="gf-form">
@@ -85,30 +116,35 @@ export class ConfigEditor extends PureComponent<Props, State> {
                 inputWidth={20}
                 onChange={this.onPortChange}
                 value={jsonData.port || ''}
-                placeholder="json field returned to frontend"
+                placeholder="Please enter host port"
             />
           </div>
 
           <div className="gf-form">
-            <FormField
-                label="Username"
-                labelWidth={6}
-                inputWidth={20}
-                onChange={this.onUsernameChange}
+
+            <SecretFormField
+                isConfigured={(secureJsonFields && secureJsonFields.username) as boolean}
                 value={secureJsonData.username || ''}
-                placeholder="json field returned to frontend"
+                label="Username"
+                placeholder="Username"
+                labelWidth={6}
+                inputWidth={20}
+                onReset={this.onResetUsername}
+                onChange={this.onUsernameChange}
             />
+
           </div>
 
           <div className="gf-form">
-            <FormField
+            <SecretFormField
+                isConfigured={(secureJsonFields && secureJsonFields.password) as boolean}
+                value={secureJsonData.password || ''}
                 label="Password"
-
+                placeholder="Password"
                 labelWidth={6}
                 inputWidth={20}
+                onReset={this.onResetPassword}
                 onChange={this.onPasswordChange}
-                value={secureJsonData.password || ''}
-                placeholder="json field returned to frontend"
             />
           </div>
 
