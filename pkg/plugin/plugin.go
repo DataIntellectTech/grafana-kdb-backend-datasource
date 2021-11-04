@@ -3,7 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
-	"math/rand"
+	"fmt"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/grafana/grafana-plugin-sdk-go/live"
+	kdb "github.com/sv/kdbgo"
 )
 
 // Make sure SampleDatasource implements required interfaces. This is important to do
@@ -30,13 +31,59 @@ var (
 )
 
 // NewSampleDatasource creates a new datasource instance.
-func NewSampleDatasource(_ backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-	return &SampleDatasource{}, nil
+func NewSampleDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
+	log.DefaultLogger.Info("newsample data source entered")
+	var client SampleDatasource
+
+	err := json.Unmarshal(settings.JSONData, &client)
+	if err != nil {
+		log.DefaultLogger.Error("Error decoding Host and Port information -%s", err.Error())
+		return nil, err
+	}
+
+	username, ok := settings.DecryptedSecureJSONData["username"]
+	if !ok {
+		log.DefaultLogger.Error("Error - Username property is required")
+		return nil, err
+	}
+	client.user = username
+
+	pass, ok := settings.DecryptedSecureJSONData["password"]
+	if !ok {
+		log.DefaultLogger.Error("Error - Pass property is required")
+		return nil, err
+	}
+	client.pass = pass
+
+	auth := fmt.Sprintf("%s:%s", client.user, client.pass)
+
+	conn, err := kdb.DialKDB(client.Host, client.Port, auth)
+	if err != nil {
+		log.DefaultLogger.Error("Error establishing kdb connection - %s", err.Error())
+		return nil, err
+	}
+
+	client.kdbHandle = conn
+
+	log.DefaultLogger.Info("newsample data source retuned")
+	return &client, nil
 }
 
 // SampleDatasource is an example datasource which can respond to data queries, reports
 // its health and has streaming skills.
-type SampleDatasource struct{}
+type SampleDatasource struct {
+	// Host for kdb connection
+	Host string `json:"host"`
+
+	// port for kdb connection
+	Port int `json:"port"`
+
+	user string
+
+	pass string
+
+	kdbHandle *kdb.KDBConn
+}
 
 // Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
 // created. As soon as datasource settings change detected by SDK old datasource instance will
@@ -117,12 +164,7 @@ func (d *SampleDatasource) CheckHealth(_ context.Context, req *backend.CheckHeal
 	log.DefaultLogger.Info("CheckHealth called", "request", req)
 
 	var status = backend.HealthStatusOk
-	var message = "Data source is working"
-
-	if rand.Int()%2 == 0 {
-		status = backend.HealthStatusError
-		message = "randomized error"
-	}
+	var message = "Data source is working " + d.Host
 
 	return &backend.CheckHealthResult{
 		Status:  status,
