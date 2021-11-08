@@ -99,7 +99,7 @@ type SampleDatasource struct {
 
 type QueryModel struct {
 	QueryText string `json:"queryText"`
-	Field string `json:"field"`
+	Field     string `json:"field"`
 }
 
 // Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
@@ -131,8 +131,6 @@ func (d *SampleDatasource) QueryData(ctx context.Context, req *backend.QueryData
 	return response, nil
 }
 
-
-
 func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	var MyQuery QueryModel
 	err := json.Unmarshal(query.JSON, &MyQuery)
@@ -150,7 +148,7 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 		return response
 	}
 
-	test, err := d.kdbHandle.Call("{([] time:reverse .z.p-0D00:20*til 10;val:til 10)}", kdb.Int(2))
+	test, err := d.kdbHandle.Call(MyQuery.QueryText, kdb.Int(2))
 	if err != nil {
 		log.DefaultLogger.Info(err.Error())
 
@@ -162,6 +160,14 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 		log.DefaultLogger.Error(e)
 
 	}
+
+	conn, _ := kdb.DialKDB("localhost", 50000, "")
+	word, err := conn.Call("{select from .o.TI where TYPE_NAME=`float}", kdb.Int(21))
+	if err != nil {
+		fmt.Println("error")
+
+	}
+	log.DefaultLogger.Info(word.String())
 
 	/*if test.Type != kdb.KD {
 		e := "returned value of unexpected type, need dictionary"
@@ -183,7 +189,6 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 	// Feel free to remove this if you don't need streaming for your datasource.
 
 	// Ask Daniel regarding streaming, we do not need so remove??
-
 
 	// add the frames to the response.
 	response.Frames = append(response.Frames, frame)
