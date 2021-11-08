@@ -11,7 +11,6 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
-	"github.com/grafana/grafana-plugin-sdk-go/live"
 	kdb "github.com/sv/kdbgo"
 )
 
@@ -98,6 +97,11 @@ type SampleDatasource struct {
 	kdbHandle *kdb.KDBConn
 }
 
+type QueryModel struct {
+	QueryText string `json:"queryText"`
+	Field string `json:"field"`
+}
+
 // Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
 // created. As soon as datasource settings change detected by SDK old datasource instance will
 // be disposed and a new one will be created using NewSampleDatasource factory function.
@@ -127,18 +131,21 @@ func (d *SampleDatasource) QueryData(ctx context.Context, req *backend.QueryData
 	return response, nil
 }
 
-type queryModel struct {
-	WithStreaming bool `json:"withStreaming"`
-}
+
 
 func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
+	var MyQuery QueryModel
+	err := json.Unmarshal(query.JSON, &MyQuery)
 
+	if err != nil {
+		log.DefaultLogger.Error("Error decoding query and field -%s", err.Error())
+
+	}
 	response := backend.DataResponse{}
-
+	log.DefaultLogger.Info("Check below")
+	log.DefaultLogger.Info(MyQuery.QueryText)
+	log.DefaultLogger.Info(MyQuery.Field)
 	// Unmarshal the JSON into our queryModel.
-	var qm queryModel
-
-	response.Error = json.Unmarshal(query.JSON, &qm)
 	if response.Error != nil {
 		return response
 	}
@@ -160,7 +167,6 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 		e := "returned value of unexpected type, need dictionary"
 		log.DefaultLogger.Error(e)
 		return nil, errors.New(e)
-
 	}*/
 
 	// create data frame response.
@@ -177,14 +183,7 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 	// Feel free to remove this if you don't need streaming for your datasource.
 
 	// Ask Daniel regarding streaming, we do not need so remove??
-	if qm.WithStreaming {
-		channel := live.Channel{
-			Scope:     live.ScopeDatasource,
-			Namespace: pCtx.DataSourceInstanceSettings.UID,
-			Path:      "stream",
-		}
-		frame.SetMeta(&data.FrameMeta{Channel: channel.String()})
-	}
+
 
 	// add the frames to the response.
 	response.Frames = append(response.Frames, frame)
