@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -32,6 +33,7 @@ var (
 
 // NewSampleDatasource creates a new datasource instance.
 func NewSampleDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
+	log.DefaultLogger.Info(string(settings.JSONData))
 	log.DefaultLogger.Info("newsample data source entered")
 	var client SampleDatasource
 
@@ -46,6 +48,7 @@ func NewSampleDatasource(settings backend.DataSourceInstanceSettings) (instancem
 		log.DefaultLogger.Error("Error - Username property is required")
 		return nil, err
 	}
+	log.DefaultLogger.Info(username)
 	client.user = username
 
 	pass, ok := settings.DecryptedSecureJSONData["password"]
@@ -53,15 +56,25 @@ func NewSampleDatasource(settings backend.DataSourceInstanceSettings) (instancem
 		log.DefaultLogger.Error("Error - Pass property is required")
 		return nil, err
 	}
+	log.DefaultLogger.Info(pass)
 	client.pass = pass
+	//TLS and Cert
 
 	auth := fmt.Sprintf("%s:%s", client.user, client.pass)
 
+	log.DefaultLogger.Info("what is host", client.Host)
+	log.DefaultLogger.Info("what is port", client.Port)
+	log.DefaultLogger.Info("what is auth", auth)
+
 	conn, err := kdb.DialKDB(client.Host, client.Port, auth)
+
 	if err != nil {
 		log.DefaultLogger.Error("Error establishing kdb connection - %s", err.Error())
 		return nil, err
 	}
+	log.DefaultLogger.Info("what is host", client.Host)
+	log.DefaultLogger.Info("what is port", client.Port)
+	log.DefaultLogger.Info("what is auth", auth)
 
 	client.kdbHandle = conn
 
@@ -128,6 +141,19 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 	if response.Error != nil {
 		return response
 	}
+	//table and dicts types here
+	/*if test.Type != kdb.KT {
+		e := "returned value of unexpected type, need table"
+		log.DefaultLogger.Error(e)
+		return nil, errors.New(e)
+
+	}
+	if test.Type != kdb.KD {
+		e := "returned value of unexpected type, need dictionary"
+		log.DefaultLogger.Error(e)
+		return nil, errors.New(e)
+
+	}*/
 
 	// create data frame response.
 	frame := data.NewFrame("response")
@@ -163,17 +189,26 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 func (d *SampleDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	log.DefaultLogger.Info("CheckHealth called", "request", req)
 
-	test, err := d.kdbHandle.Call("{1+1}", kdb.Int(21))
+	test, err := d.kdbHandle.Call("{1+1}", kdb.Int(2))
 	if err != nil {
 		log.DefaultLogger.Info(err.Error())
 		return nil, err
 	}
+
 	log.DefaultLogger.Info(test.String())
 	log.DefaultLogger.Info("test")
 
 	var status = backend.HealthStatusOk
 	var message = "Data source is working " + d.Host
-	if test.String() == "2" {
+	if test.Type != -kdb.KJ {
+		e := "returned value of unexpected type"
+		log.DefaultLogger.Error(e)
+		return nil, errors.New(e)
+
+	}
+	x, _ := test.Data.(int64)
+
+	if x == 2 {
 		status = backend.HealthStatusOk
 		message = "kdb connected succesfully"
 
