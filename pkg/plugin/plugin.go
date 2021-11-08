@@ -132,6 +132,7 @@ type queryModel struct {
 }
 
 func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
+
 	response := backend.DataResponse{}
 
 	// Unmarshal the JSON into our queryModel.
@@ -141,14 +142,21 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 	if response.Error != nil {
 		return response
 	}
-	//table and dicts types here
-	/*if test.Type != kdb.KT {
-		e := "returned value of unexpected type, need table"
-		log.DefaultLogger.Error(e)
-		return nil, errors.New(e)
+
+	test, err := d.kdbHandle.Call("{([] time:reverse .z.p-0D00:20*til 10;val:til 10)}", kdb.Int(2))
+	if err != nil {
+		log.DefaultLogger.Info(err.Error())
 
 	}
-	if test.Type != kdb.KD {
+
+	//table and dicts types here
+	if test.Type != kdb.KT {
+		e := "returned value of unexpected type, need table"
+		log.DefaultLogger.Error(e)
+
+	}
+
+	/*if test.Type != kdb.KD {
 		e := "returned value of unexpected type, need dictionary"
 		log.DefaultLogger.Error(e)
 		return nil, errors.New(e)
@@ -167,6 +175,8 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 	// If query called with streaming on then return a channel
 	// to subscribe on a client-side and consume updates from a plugin.
 	// Feel free to remove this if you don't need streaming for your datasource.
+
+	// Ask Daniel regarding streaming, we do not need so remove??
 	if qm.WithStreaming {
 		channel := live.Channel{
 			Scope:     live.ScopeDatasource,
