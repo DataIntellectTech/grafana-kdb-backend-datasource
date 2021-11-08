@@ -161,13 +161,23 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 
 	}
 
-	conn, _ := kdb.DialKDB("localhost", 50000, "")
-	word, err := conn.Call("{select from .o.TI where TYPE_NAME=`float}", kdb.Int(21))
+
+	conn, _ := kdb.DialKDB("localhost", 5000, "")
+	word, err := conn.Call(MyQuery.QueryText)
 	if err != nil {
 		fmt.Println("error")
 
 	}
+	log.DefaultLogger.Info("========Below=====")
 	log.DefaultLogger.Info(word.String())
+	if word.Type != kdb.XT{
+		log.DefaultLogger.Error("Not a table")
+		return response
+	}
+
+	anotherWord := word.Data.(kdb.Table)
+
+
 
 	/*if test.Type != kdb.KD {
 		e := "returned value of unexpected type, need dictionary"
@@ -177,12 +187,13 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 
 	// create data frame response.
 	frame := data.NewFrame("response")
+	tabCols:= anotherWord.Columns
+	tabData := anotherWord.Data
+
+	for colIndex, column := range tabCols { frame.Fields=append(frame.Fields, data.NewField(column, nil, tabData[colIndex].Data))}
+
 
 	// add fields.
-	frame.Fields = append(frame.Fields,
-		data.NewField("time", nil, []time.Time{query.TimeRange.From, query.TimeRange.To}),
-		data.NewField("values", nil, []int64{10, 20}),
-	)
 
 	// If query called with streaming on then return a channel
 	// to subscribe on a client-side and consume updates from a plugin.
