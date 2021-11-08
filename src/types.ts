@@ -19,4 +19,6 @@ export interface MyDataSourceOptions extends DataSourceJsonData {
 export interface MySecureJsonData {
   username: string;
   password: string;
+  tlsCertificate?:string;
+  tlsKey?:string;
 }
