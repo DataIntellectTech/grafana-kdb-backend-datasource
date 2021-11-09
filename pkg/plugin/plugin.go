@@ -56,11 +56,30 @@ func NewSampleDatasource(settings backend.DataSourceInstanceSettings) (instancem
 		log.DefaultLogger.Error("Error - Pass property is required")
 		return nil, err
 	}
+
 	log.DefaultLogger.Info(pass)
 	client.pass = pass
 	//TLS and Cert
+	tlsCertificate, ok := settings.DecryptedSecureJSONData["tlsCertificate"]
+	if !ok {
+		log.DefaultLogger.Error("Error - tlsCertificate property is required")
 
+	}
+
+	log.DefaultLogger.Info(tlsCertificate)
+	client.tlsCertificate = tlsCertificate
+
+	tlsKey, ok := settings.DecryptedSecureJSONData["tlsKey"]
+	if !ok {
+		log.DefaultLogger.Error("Error - tlsKey property is required")
+	}
+
+	log.DefaultLogger.Info(tlsKey)
+	client.tlsKey = tlsKey
 	auth := fmt.Sprintf("%s:%s", client.user, client.pass)
+	if client.tlsKey != "" || client.tlsCertificate != "" {
+		auth = fmt.Sprintf("%s:%s:%s:%s", client.user, client.pass, client.tlsCertificate, client.tlsKey)
+	}
 
 	log.DefaultLogger.Info("what is host", client.Host)
 	log.DefaultLogger.Info("what is port", client.Port)
@@ -94,6 +113,10 @@ type SampleDatasource struct {
 	user string
 
 	pass string
+
+	tlsCertificate string
+
+	tlsKey string
 
 	kdbHandle *kdb.KDBConn
 }
