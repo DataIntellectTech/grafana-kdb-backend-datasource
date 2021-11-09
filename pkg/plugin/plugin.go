@@ -30,11 +30,12 @@ var (
 	_ instancemgmt.InstanceDisposer = (*SampleDatasource)(nil)
 )
 
+var client SampleDatasource
+
 // NewSampleDatasource creates a new datasource instance.
 func NewSampleDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
 	log.DefaultLogger.Info(string(settings.JSONData))
 	log.DefaultLogger.Info("newsample data source entered")
-	var client SampleDatasource
 
 	err := json.Unmarshal(settings.JSONData, &client)
 	if err != nil {
@@ -133,6 +134,7 @@ func (d *SampleDatasource) QueryData(ctx context.Context, req *backend.QueryData
 
 func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	var MyQuery QueryModel
+
 	err := json.Unmarshal(query.JSON, &MyQuery)
 
 	if err != nil {
@@ -161,8 +163,8 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 
 	}
 
-
-	conn, _ := kdb.DialKDB("localhost", 5000, "")
+	auth := fmt.Sprintf("%s:%s", client.user, client.pass)
+	conn, _ := kdb.DialKDB(client.Host, client.Port, auth)
 	word, err := conn.Call(MyQuery.QueryText)
 	if err != nil {
 		fmt.Println("error")
@@ -170,28 +172,27 @@ func (d *SampleDatasource) query(_ context.Context, pCtx backend.PluginContext, 
 	}
 	log.DefaultLogger.Info("========Below=====")
 	log.DefaultLogger.Info(word.String())
-	if word.Type != kdb.XT{
+	if word.Type != kdb.XT {
 		log.DefaultLogger.Error("Not a table")
 		return response
 	}
 
 	anotherWord := word.Data.(kdb.Table)
 
-
-
-	/*if test.Type != kdb.KD {
-		e := "returned value of unexpected type, need dictionary"
+	if test.Type != kdb.KT {
+		e := "returned value of unexpected type, need table"
 		log.DefaultLogger.Error(e)
-		return nil, errors.New(e)
-	}*/
+
+	}
 
 	// create data frame response.
 	frame := data.NewFrame("response")
-	tabCols:= anotherWord.Columns
+	tabCols := anotherWord.Columns
 	tabData := anotherWord.Data
 
-	for colIndex, column := range tabCols { frame.Fields=append(frame.Fields, data.NewField(column, nil, tabData[colIndex].Data))}
-
+	for colIndex, column := range tabCols {
+		frame.Fields = append(frame.Fields, data.NewField(column, nil, tabData[colIndex].Data))
+	}
 
 	// add fields.
 
