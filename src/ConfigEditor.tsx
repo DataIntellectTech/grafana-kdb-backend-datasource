@@ -32,12 +32,22 @@ export class ConfigEditor extends PureComponent<Props, State> {
     if((/^\d+$/.test(event.target.value) || event.target.value==="")){
       const jsonData = {
         ...options.jsonData,
-        port: parseInt(event.target.value),
+        port: parseInt(event.target.value, 10),
       };
       onOptionsChange({ ...options, jsonData });
     }
   }
+  onTimeoutChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const { onOptionsChange, options } = this.props;
 
+    if((/^\d+$/.test(event.target.value) || event.target.value==="")){
+      const jsonData = {
+        ...options.jsonData,
+        timeout: event.target.value,
+      };
+      onOptionsChange({ ...options, jsonData });
+    }
+  }
   onUsernameChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { onOptionsChange, options } = this.props;
     const { secureJsonData } = options;
@@ -227,7 +237,16 @@ export class ConfigEditor extends PureComponent<Props, State> {
                 placeholder="Please enter host port"
             />
           </div>
-
+          <div className="gf-form">
+            <FormField
+                label="Timeout"
+                labelWidth={7}
+                inputWidth={20}
+                onChange={this.onTimeoutChange}
+                value={jsonData.timeout || ''}
+                placeholder="Please set timeout"
+            />
+          </div>
           <div className="gf-form">
 
             <SecretFormField

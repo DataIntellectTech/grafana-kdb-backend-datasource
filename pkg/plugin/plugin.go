@@ -42,6 +42,9 @@ func NewSampleDatasource(settings backend.DataSourceInstanceSettings) (instancem
 		log.DefaultLogger.Error("Error decoding Host and Port information -%s", err.Error())
 		return nil, err
 	}
+	log.DefaultLogger.Info("Timeout below")
+
+	log.DefaultLogger.Info(client.Timeout)
 
 	username, ok := settings.DecryptedSecureJSONData["username"]
 	if !ok {
@@ -73,19 +76,16 @@ func NewSampleDatasource(settings backend.DataSourceInstanceSettings) (instancem
 	if !ok {
 		log.DefaultLogger.Error("Error - tlsKey property is required")
 	}
+	timeOutDuration, _ := time.ParseDuration(client.Timeout + "ms")
 
-	log.DefaultLogger.Info(tlsKey)
 	client.tlsKey = tlsKey
 	auth := fmt.Sprintf("%s:%s", client.user, client.pass)
-	if client.tlsKey != "" || client.tlsCertificate != "" {
-		auth = fmt.Sprintf("%s:%s:%s:%s", client.user, client.pass, client.tlsCertificate, client.tlsKey)
-	}
+
+	conn, err := kdb.DialKDBTimeout(client.Host, client.Port, auth, timeOutDuration)
 
 	log.DefaultLogger.Info("what is host", client.Host)
 	log.DefaultLogger.Info("what is port", client.Port)
 	log.DefaultLogger.Info("what is auth", auth)
-
-	conn, err := kdb.DialKDB(client.Host, client.Port, auth)
 
 	if err != nil {
 		log.DefaultLogger.Error("Error establishing kdb connection - %s", err.Error())
@@ -109,6 +109,8 @@ type SampleDatasource struct {
 
 	// port for kdb connection
 	Port int `json:"port"`
+
+	Timeout string `json:"timeout"`
 
 	user string
 
