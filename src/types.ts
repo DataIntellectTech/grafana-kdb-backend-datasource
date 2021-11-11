@@ -11,7 +11,7 @@ export interface MyQuery extends DataQuery {
 export interface MyDataSourceOptions extends DataSourceJsonData {
   host: string;
   port: number;
-  timeout: string;
+  timeout?: string;
 }
 
 /**

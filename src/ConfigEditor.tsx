@@ -237,7 +237,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
                 placeholder="Please enter host port"
             />
           </div>
-          <div className="gf-form">
+          {!this.state.displayTLS &&           <div className="gf-form">
             <FormField
                 label="Timeout"
                 labelWidth={7}
@@ -246,7 +246,8 @@ export class ConfigEditor extends PureComponent<Props, State> {
                 value={jsonData.timeout || ''}
                 placeholder="Please set timeout"
             />
-          </div>
+          </div>}
+
           <div className="gf-form">
 
             <SecretFormField
