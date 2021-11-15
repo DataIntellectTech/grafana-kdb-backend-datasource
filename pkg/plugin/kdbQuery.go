@@ -25,8 +25,14 @@ func (d *KdbDatasource) runKdbQuerySync(query string) (*kdb.K, error) {
 
 func (d *KdbDatasource) syncQueryRunner() {
 	for {
-		query := <-d.syncQueue
-		res, err := d.kdbHandle.Call(query.query)
-		d.syncResChan <- &kdbSyncRes{result: res, err: err, id: query.id}
+		select {
+		case signal := <-d.signals:
+			if signal == 3 {
+				return
+			}
+		case query := <-d.syncQueue:
+			res, err := d.kdbHandle.Call(query.query)
+			d.syncResChan <- &kdbSyncRes{result: res, err: err, id: query.id}
+		}
 	}
 }

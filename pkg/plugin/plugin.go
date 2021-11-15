@@ -56,6 +56,7 @@ type KdbDatasource struct {
 	tlsCertificate      string
 	tlsKey              string
 	kdbHandle           *kdb.KDBConn
+	signals             chan int
 	syncQueue           chan *kdbSyncQuery
 	syncResChan         chan *kdbSyncRes
 	kdbSyncQueryCounter uint32
@@ -132,6 +133,7 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 func (d *KdbDatasource) Dispose() {
 
 	log.DefaultLogger.Info("===============RAN DISPOSE===============")
+	d.signals <- 3
 	err := d.kdbHandle.Close()
 	if err != nil {
 		log.DefaultLogger.Error("Error closing KDB connection", err)
