@@ -34,28 +34,36 @@ type QueryModel struct {
 	Field     string `json:"field"`
 }
 
+type kdbSyncQuery struct {
+	query string
+	id    uint32
+}
+
+type kdbSyncRes struct {
+	result *kdb.K
+	err    error
+	id     uint32
+}
+
 type KdbDatasource struct {
 	// Host for kdb connection
 	Host string `json:"host"`
-
 	// port for kdb connection
-	Port int `json:"port"`
-
-	Timeout string `json:"timeout"`
-
-	user string
-
-	pass string
-
-	tlsCertificate string
-
-	tlsKey string
-
-	kdbHandle *kdb.KDBConn
+	Port                int    `json:"port"`
+	Timeout             string `json:"timeout"`
+	user                string
+	pass                string
+	tlsCertificate      string
+	tlsKey              string
+	kdbHandle           *kdb.KDBConn
+	syncQueue           chan *kdbSyncQuery
+	syncResChan         chan *kdbSyncRes
+	kdbSyncQueryCounter uint32
 }
 
 // NewKdbDatasource creates a new datasource instance.
 func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
+	log.DefaultLogger.Info("NEW KDB DATASOURCE: SETTINGS: ", settings)
 	client := KdbDatasource{}
 	err := json.Unmarshal(settings.JSONData, &client)
 	if err != nil {
@@ -96,13 +104,25 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	}
 
 	timeOutDuration, _ := time.ParseDuration(client.Timeout + "ms")
+	log.DefaultLogger.Info(fmt.Sprintf("Dialling KDB process on %v:%v ...", client.Host, client.Port))
 	conn, err := kdb.DialKDBTimeout(client.Host, client.Port, auth, timeOutDuration)
 	if err != nil {
 		log.DefaultLogger.Error("Error establishing kdb connection - %s", err.Error())
 		return nil, err
 	}
+	log.DefaultLogger.Info(fmt.Sprintf("Dialled %v:%v successfully", client.Host, client.Port))
 
 	client.kdbHandle = conn
+	// make channel for synchronous queries
+	log.DefaultLogger.Info("Making synchronous query channel")
+	client.syncQueue = make(chan *kdbSyncQuery)
+	// make channel for synchronous responses
+	log.DefaultLogger.Info("Making synchronous response channel")
+	client.syncResChan = make(chan *kdbSyncRes)
+	// start synchronous listener
+	log.DefaultLogger.Info("Beginning synchronous listener")
+	go client.syncQueryRunner()
+	log.DefaultLogger.Info("KDB Datasource created successfully")
 	return &client, nil
 }
 
@@ -158,7 +178,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	log.DefaultLogger.Info("Before response")
 	log.DefaultLogger.Info("Before response")
 
-	kdbResponse, err := d.kdbHandle.Call(MyQuery.QueryText)
+	kdbResponse, err := d.runKdbQuerySync(MyQuery.QueryText)
 	if err != nil {
 		log.DefaultLogger.Info(kdbResponse.String())
 		log.DefaultLogger.Info(err.Error())
@@ -166,7 +186,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 		return response
 
 	}
-	log.DefaultLogger.Info("After respose")
+	log.DefaultLogger.Info("After response")
 
 	//table and dicts types here
 	frame := data.NewFrame("response")
