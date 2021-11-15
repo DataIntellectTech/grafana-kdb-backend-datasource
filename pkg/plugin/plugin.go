@@ -114,6 +114,9 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	log.DefaultLogger.Info(fmt.Sprintf("Dialled %v:%v successfully", client.Host, client.Port))
 
 	client.kdbHandle = conn
+	// making signals channel (this should be done through ctx)
+	log.DefaultLogger.Info("Making signals channel")
+	client.signals = make(chan int)
 	// make channel for synchronous queries
 	log.DefaultLogger.Info("Making synchronous query channel")
 	client.syncQueue = make(chan *kdbSyncQuery)
