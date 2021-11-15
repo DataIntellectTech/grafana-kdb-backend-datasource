@@ -135,6 +135,7 @@ func (d *KdbDatasource) Dispose() {
 	log.DefaultLogger.Info("===============RAN DISPOSE===============")
 	d.signals <- 3
 	err := d.kdbHandle.Close()
+	close(d.signals)
 	if err != nil {
 		log.DefaultLogger.Error("Error closing KDB connection", err)
 	}

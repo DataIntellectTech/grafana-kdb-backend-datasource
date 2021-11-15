@@ -28,6 +28,8 @@ func (d *KdbDatasource) syncQueryRunner() {
 		select {
 		case signal := <-d.signals:
 			if signal == 3 {
+				close(d.syncQueue)
+				close(d.syncResChan)
 				return
 			}
 		case query := <-d.syncQueue:
