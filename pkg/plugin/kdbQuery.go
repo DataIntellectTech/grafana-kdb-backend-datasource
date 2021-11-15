@@ -11,7 +11,6 @@ func (d *KdbDatasource) getKdbSyncQueryId() uint32 {
 	return d.kdbSyncQueryCounter
 }
 
-// execute 'sync' queries as async queries with MsgType 1
 func (d *KdbDatasource) runKdbQuerySync(query string) (*kdb.K, error) {
 	queryObj := &kdbSyncQuery{query: query, id: d.getKdbSyncQueryId()}
 	d.syncQueue <- queryObj
