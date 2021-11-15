@@ -26,6 +26,7 @@ export class QueryEditor extends PureComponent<Props> {
   render() {
     const query = this.props.query;
     const { queryText, field } = query;
+    console.log(this.props);
 
 
     return (

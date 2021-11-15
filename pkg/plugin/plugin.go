@@ -29,8 +29,6 @@ var (
 	_ instancemgmt.InstanceDisposer = (*KdbDatasource)(nil)
 )
 
-var client KdbDatasource
-
 type QueryModel struct {
 	QueryText string `json:"queryText"`
 	Field     string `json:"field"`
@@ -58,7 +56,7 @@ type KdbDatasource struct {
 
 // NewKdbDatasource creates a new datasource instance.
 func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-
+	client := KdbDatasource{}
 	err := json.Unmarshal(settings.JSONData, &client)
 	if err != nil {
 		log.DefaultLogger.Error("Error decoding Host and Port information", err.Error())
@@ -112,6 +110,8 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 // created. As soon as datasource settings change detected by SDK old datasource instance will
 // be disposed and a new one will be created using NewKdbDatasource factory function.
 func (d *KdbDatasource) Dispose() {
+
+	log.DefaultLogger.Info("===============RAN DISPOSE===============")
 	err := d.kdbHandle.Close()
 	if err != nil {
 		log.DefaultLogger.Error("Error closing KDB connection", err)
@@ -124,14 +124,15 @@ func (d *KdbDatasource) Dispose() {
 // contains Frames ([]*Frame).
 func (d *KdbDatasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
 	log.DefaultLogger.Info("QueryData called", "request", req)
-
+	log.DefaultLogger.Info(fmt.Sprintf("datasource %v", d.Host))
+	log.DefaultLogger.Info(fmt.Sprintf("datasource %v", d.Port))
+	log.DefaultLogger.Info(fmt.Sprintf("datasource %v", d.kdbHandle))
 	// create response struct
 	response := backend.NewQueryDataResponse()
 
 	// loop over queries and execute them individually.
 	for i, q := range req.Queries {
 		res := d.query(ctx, req.PluginContext, q)
-		log.DefaultLogger.Info("Query Num")
 		log.DefaultLogger.Info(strconv.Itoa(i))
 		// save the response in a hashmap
 		// based on with RefID as identifier
@@ -143,7 +144,7 @@ func (d *KdbDatasource) QueryData(ctx context.Context, req *backend.QueryDataReq
 
 func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	var MyQuery QueryModel
-
+	log.DefaultLogger.Info(string(query.JSON))
 	err := json.Unmarshal(query.JSON, &MyQuery)
 	if err != nil {
 		log.DefaultLogger.Error("Error decoding query and field -%s", err.Error())
@@ -153,13 +154,19 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	if response.Error != nil {
 		return response
 	}
-	log.DefaultLogger.Info("Line 160")
+
+	log.DefaultLogger.Info("Before response")
+	log.DefaultLogger.Info("Before response")
 
 	kdbResponse, err := d.kdbHandle.Call(MyQuery.QueryText)
 	if err != nil {
+		log.DefaultLogger.Info(kdbResponse.String())
 		log.DefaultLogger.Info(err.Error())
+		response.Error = err
+		return response
 
 	}
+	log.DefaultLogger.Info("After respose")
 
 	//table and dicts types here
 	frame := data.NewFrame("response")
@@ -167,7 +174,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	switch {
 	case kdbResponse.Type == kdb.XT:
 		kdbTable := kdbResponse.Data.(kdb.Table)
-
+		log.DefaultLogger.Info(kdbResponse.String())
 		tabCols := kdbTable.Columns
 		tabData := kdbTable.Data
 
