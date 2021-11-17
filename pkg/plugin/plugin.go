@@ -2,16 +2,17 @@ package plugin
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"strconv"
-	"time"
-
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	kdb "github.com/sv/kdbgo"
+	"io/ioutil"
+	"os"
+	"strconv"
 )
 
 // Make sure SampleDatasource implements required interfaces. This is important to do
@@ -100,13 +101,34 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	}
 	client.tlsKey = tlsKey
 
-	if keyOk && certOk {
-		//Create TLS connection
+	ex, err := os.Executable()
+	log.DefaultLogger.Info(ex)
+	key, err := ioutil.ReadFile("C:/Users/George Marshall/Documents/Grafana Plugin/plugins/kdb-backend-datasource/pkg/plugin/certs/client-key.pem")
+	if err != nil {
+		log.DefaultLogger.Error("Read error key", err)
+	}
+	crt, err := ioutil.ReadFile("C:/Users/George Marshall/Documents/Grafana Plugin/plugins/kdb-backend-datasource/pkg/plugin/certs/client-crt.pem")
+	if err != nil {
+		log.DefaultLogger.Error("Read error cert", err)
 	}
 
-	timeOutDuration, _ := time.ParseDuration(client.Timeout + "ms")
+	log.DefaultLogger.Error("Read error cert", crt)
+	crt = []byte("-----BEGIN CERTIFICATE-----MIIDUzCCAjsCAQEwDQYJKoZIhvcNAQELBQAwdDELMAkGA1UEBhMCVVMxETAPBgNVBAgMCE5ldyBZb3JrMREwDwYDVQQHDAhCcm9va2x5bjEhMB8GA1UECgwYRXhhbXBsZSBCcm9va2x5biBDb21wYW55MRwwGgYDVQQDDBNleGFtcGxlYnJvb2tseW4uY29tMB4XDTIxMTExNzE0MTIwMFoXDTMxMDkyNjE0MTIwMFowazELMAkGA1UEBhMCVVMxETAPBgNVBAgMCE5ldyBZb3JrMREwDwYDVQQHDAhCcm9va2x5bjEhMB8GA1UECgwYRXhhbXBsZSBCcm9va2x5biBDb21wYW55MRMwEQYDVQQDDApteW5hbWUuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvFMOC2dYk41gDbS+6x+S9VA/YG1i++rgi6A2bwhjvrXcWLGe7O9PdSoKBSmUsSFmL45qH1wyCROSocbfAkVOx2ssRXUuFGQHA4ZSKLAvXpsH3BTZ1d6aOqDGLEYJcHsITHKSWj7xyGz+kqOaXenCMFFYpbXHiYmqtPIUCX0EEMUWgJaKC9TN6BcQACPStibwz5ASfF6tL3vsxfmBwAvoIv/88itkhC9JaGtVfLIeQcAJKyMXlwyWC/4kyzi2m7BADQ0WeSjABnxkvQlpm8342M4fRn0nZQk0ZwkOz7Pg5r+EdBTb+na8yREC6FMvxjrdXLd0/l4/c6Fh0glh08fIwQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQBalH4ZL4HITrPGxmmNw+d/rhSMfze+J2b95EEgq8JrMU48uWS7PsetVMDa9fI8ccqxq7ws+YSS+N11DEkJq7wwPHVU8NAGCmr/kqQ9jCsJFSzZMwzwvdi8+trZzMVzAVRctlys3NB5c0w6Q/YvR1ii6NtEKol7NZCMt+Fh/kFxNVRrMBrKd0A+9X6n3UJsH+S2kIc8rMfC/svRZSJxHcvDcFwlKU/tE7m+XYKliGbj9ixrOqx0AIQvtXS7NpyIAZprAk3Vt90QfxTTxoudbw6VSqEr0Tr0z/ZAbMRg+X7RsrH+/scdAnL+6s8XUHQhsbC9pUHuN4VGwzXZtJBdvseg-----END CERTIFICATE-----")
+	cert, err := tls.X509KeyPair(crt, key)
+	if err != nil {
+		log.DefaultLogger.Error(fmt.Sprintf("Cert convert error %v", err))
+	}
+
+	tlsServerConfig := new(tls.Config)
+
+	tlsServerConfig.Certificates = []tls.Certificate{cert}
+
+	conn, err := kdb.DialTLS(client.Host, client.Port, auth, tlsServerConfig)
+
+	log.DefaultLogger.Info(auth)
+	//timeOutDuration, _ := time.ParseDuration(client.Timeout + "ms")
 	log.DefaultLogger.Info(fmt.Sprintf("Dialling KDB process on %v:%v ...", client.Host, client.Port))
-	conn, err := kdb.DialKDBTimeout(client.Host, client.Port, auth, timeOutDuration)
+	//conn, err := kdb.DialKDBTimeout(client.Host, client.Port, auth, timeOutDuration)
 	if err != nil {
 		log.DefaultLogger.Error("Error establishing kdb connection - %s", err.Error())
 		return nil, err
