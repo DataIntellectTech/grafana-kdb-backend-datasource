@@ -1,7 +1,8 @@
+import { defaults } from 'lodash';
 import React, { ChangeEvent, PureComponent } from 'react';
 import { LegacyForms} from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
-import { MyDataSourceOptions, MySecureJsonData } from './types';
+import {defaultConfig, MyDataSourceOptions, MySecureJsonData} from './types';
 
 const { FormField, SecretFormField, Switch } = LegacyForms;
 
@@ -103,22 +104,16 @@ export class ConfigEditor extends PureComponent<Props, State> {
   };
 
   onTlsToggle = () => {
-    this.setState({displayTLS:!this.state.displayTLS});
+
     const { onOptionsChange, options } = this.props;
-    onOptionsChange({
-      ...options,
-      secureJsonFields: {
-        ...options.secureJsonFields,
-        tlsKey: false,
-        tlsCertificate: false,
-      },
-      secureJsonData: {
-        ...options.secureJsonData,
-        tlsKey: '',
-        tlsCertificate: '',
-      },
-    });
+    const jsonData = {
+      ...options.jsonData,
+      withTLS: !options.jsonData.withTLS
+    };
+    // @ts-ignore
+    onOptionsChange({ ...options, jsonData });
   };
+
 
   onTlsCertificateChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { onOptionsChange, options } = this.props;
@@ -211,9 +206,11 @@ export class ConfigEditor extends PureComponent<Props, State> {
   }
 
   render() {
-    const { options } = this.props;
+
+    const { options } = defaults(this.props, defaultConfig);
     const { jsonData, secureJsonFields } = options;
     const secureJsonData = (options.secureJsonData || {}) as MySecureJsonData;
+    console.log(this.props);
     return (
         <div className="gf-form-group">
 
@@ -237,16 +234,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
                 placeholder="Please enter host port"
             />
           </div>
-          {!this.state.displayTLS &&           <div className="gf-form">
-            <FormField
-                label="Timeout"
-                labelWidth={7}
-                inputWidth={20}
-                onChange={this.onTimeoutChange}
-                value={jsonData.timeout || ''}
-                placeholder="Please set timeout"
-            />
-          </div>}
+
 
           <div className="gf-form">
 
@@ -275,9 +263,21 @@ export class ConfigEditor extends PureComponent<Props, State> {
                 onChange={this.onPasswordChange}
             />
           </div>
-          {this.state.displayTLS && <>{this.renderTLS()}</>}
+          {!options.jsonData.withTLS &&
           <div className="gf-form">
-          <Switch checked={this.state.displayTLS} label="Enable TLS" onChange={this.onTlsToggle} />
+            <FormField
+                label="Timeout"
+                labelWidth={7}
+                inputWidth={20}
+                onChange={this.onTimeoutChange}
+                value={jsonData.timeout || ''}
+                placeholder="Please set timeout"
+            />
+          </div>}
+
+          {options.jsonData.withTLS && <>{this.renderTLS()}</>}
+          <div className="gf-form">
+          <Switch checked={options.jsonData.withTLS} label="Enable TLS" onChange={this.onTlsToggle} />
           </div>
 
 

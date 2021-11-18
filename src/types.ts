@@ -12,7 +12,13 @@ export interface MyDataSourceOptions extends DataSourceJsonData {
   host: string;
   port: number;
   timeout?: string;
+  withTLS: boolean;
 }
+
+export const defaultConfig: Partial<MyDataSourceOptions> = {
+  withTLS: false,
+
+};
 
 /**
  * Value that is used in the backend, but never sent over HTTP to the frontend
