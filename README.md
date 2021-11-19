@@ -1,18 +1,38 @@
-# Grafana Data Source Backend Plugin Template
+# Grafana  KDB Backend Datasource
 
 [![Build](https://github.com/grafana/grafana-starter-datasource-backend/workflows/CI/badge.svg)](https://github.com/grafana/grafana-datasource-backend/actions?query=workflow%3A%22CI%22)
 
-This template is a starting point for building Grafana Data Source Backend Plugins
+## What is KDB Backend Datasource?
 
-## What is Grafana Data Source Backend Plugin?
+KDB Backend Datasource is a plugin that adds the ability to query KDB from Grafana. It also enables the use of alerting on the data. It supports the use of varibles in the dashboard.
 
-Grafana supports a wide range of data sources, including Prometheus, MySQL, and even Datadog. There’s a good chance you can already visualize metrics from the systems you have set up. In some cases, though, you already have an in-house metrics solution that you’d like to add to your Grafana dashboards. Grafana Data Source Plugins enables integrating such solutions with Grafana.
+## Getting started for users
 
-For more information about backend plugins, refer to the documentation on [Backend plugins](https://grafana.com/docs/grafana/latest/developers/plugins/backend/).
+Below gives instructions for using the plugin
 
-## Getting started
+### Adding a data source
 
-A data source backend plugin consists of both frontend and backend components.
+1. Navigate to settings -> datasources
+2. Click add datasource and navigate to kdb-backend-datasource
+3. Enter the URL and Port of your KDB instance. A username and password must be entered for the KDB instance. <br /> Note: If your instance doesn't have a username or password, fill these fields with random text <br /> For example: username: Ausername, password: Apassword
+4. Enter a timeout value in ms, suggested is 350
+5. Click save & test
+6. An alert at the bottom should display: "kdb connected succesfully"
+
+### Creating a dashboard
+
+1. Navigate to create -> dashboard
+2. Create an empty panel
+3. Under the KDB Query field enter a valid KDB query </br> For example: ([] time:reverse .z.p-0D00:20*til 10;val:til 10)
+4. Click the refresh dashboard in the top right, above the Panel
+5. The data should be displayed on the panel
+6. Click save and return to your dashboard
+7. The refresh rate can be set from your dashboard, click refresh, select the drop down menu and set your refresh time.
+
+
+## Getting started for developers
+
+Below gives instructions for building the plugin in both development mode and production mode.
 
 ### Frontend
 
@@ -61,10 +81,18 @@ A data source backend plugin consists of both frontend and backend components.
    mage -l
    ```
 
-## Learn more
+### Setting Grafana to development mode
 
-- [Build a data source backend plugin tutorial](https://grafana.com/tutorials/build-a-data-source-backend-plugin)
-- [Grafana documentation](https://grafana.com/docs/)
-- [Grafana Tutorials](https://grafana.com/tutorials/) - Grafana Tutorials are step-by-step guides that help you make the most of Grafana
-- [Grafana UI Library](https://developers.grafana.com/ui) - UI components to help you build interfaces using Grafana Design System
-- [Grafana plugin SDK for Go](https://grafana.com/docs/grafana/latest/developers/plugins/backend/grafana-plugin-sdk-for-go/)
+1. Navigate to your Grafana conf folder (grafana/conf)
+2. Create a duplicate of sample.ini renaming it to custom.ini (or update your existing custom.ini)
+3. Open custom.ini in your favorite editor
+4. Uncomment "app_mode" (Note: comments are ";") and set it "app_mode = development"
+5. Save your changes and restart Grafana, changes should be implemented
+
+### Adding plugin to Grafana
+1. Navigate to your Grafana conf folder (grafana/conf)
+2. Create a duplicate of sample.ini renaming it to custom.ini (or update your existing custom.ini)
+3. Open custom.ini in your favorite editor
+4. Uncomment the "plugin" parameter and set it to the directory containing your plugin, This does not need to be altered if you are installing the plugin in the default location
+5. Uncomment and set "allow_loading_unsigned_plugins=aqua-q-kdb-backend-datasource"
+
