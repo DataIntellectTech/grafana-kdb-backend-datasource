@@ -3,7 +3,8 @@ import React, { ChangeEvent, PureComponent } from 'react';
 import { LegacyForms} from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
 import {defaultConfig, MyDataSourceOptions, MySecureJsonData} from './types';
-
+// @ts-ignore
+import { version } from '../package.json';
 const { FormField, SecretFormField, Switch } = LegacyForms;
 
 interface Props extends DataSourcePluginOptionsEditorProps<MyDataSourceOptions> {}
@@ -210,7 +211,6 @@ export class ConfigEditor extends PureComponent<Props, State> {
     const { options } = defaults(this.props, defaultConfig);
     const { jsonData, secureJsonFields } = options;
     const secureJsonData = (options.secureJsonData || {}) as MySecureJsonData;
-    console.log(this.props);
     return (
         <div className="gf-form-group">
 
@@ -278,6 +278,10 @@ export class ConfigEditor extends PureComponent<Props, State> {
           {options.jsonData.withTLS && <>{this.renderTLS()}</>}
           <div className="gf-form">
           <Switch checked={options.jsonData.withTLS} label="Enable TLS" onChange={this.onTlsToggle} />
+          </div>
+
+          <div className="gf-form">
+            Version: {version}
           </div>
 
 

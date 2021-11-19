@@ -1,5 +1,3 @@
-
-
 import React, { ChangeEvent, PureComponent } from 'react';
 import { LegacyForms } from '@grafana/ui';
 import { QueryEditorProps } from '@grafana/data';
@@ -23,32 +21,35 @@ export class QueryEditor extends PureComponent<Props> {
 
 
 
-  render() {
-    const query = this.props.query;
-    const { queryText, field } = query;
-    console.log(this.props);
+    render() {
+        const query = this.props.query;
+        const { queryText, field } = query;
+        return (
+            <>
+                <div style={{paddingBottom: 10}}>
+                <FormField
+                    inputWidth={40}
+                    labelWidth={7}
+                    value={queryText || ''}
+                    onChange={this.onQueryTextChange}
+                    label="KDB Query"
+                    tooltip="Please enter a KDB Query"
+                />
+                </div>
+
+                <div style={{paddingBottom: 10}}>
+                <FormField
+                    inputWidth={15}
+                    labelWidth={7}
+                    value={field || ''}
+                    onChange={this.onFieldChange}
+                    label="Field"
+                    tooltip="Please enter a Field"
+                />
+                </div>
 
 
-    return (
-      <div className="gf-form">
-
-        <FormField
-          labelWidth={7}
-          value={queryText || ''}
-          onChange={this.onQueryTextChange}
-          label="KBD Query"
-          tooltip="Please enter a KBD Query"
-        />
-
-        <FormField
-            labelWidth={5}
-            value={field || ''}
-            onChange={this.onFieldChange}
-            label="Field"
-            tooltip="Please enter a Field"
-        />
-
-      </div>
-    );
-  }
+                </>
+        );
+    }
 }
