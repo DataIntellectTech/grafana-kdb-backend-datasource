@@ -9,15 +9,15 @@ const { FormField } = LegacyForms;
 type Props = QueryEditorProps<DataSource, MyQuery, MyDataSourceOptions>;
 
 export class QueryEditor extends PureComponent<Props> {
-  onQueryTextChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const { onChange, query } = this.props;
-    onChange({ ...query, queryText: event.target.value });
-  };
+    onQueryTextChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const { onChange, query } = this.props;
+        onChange({ ...query, queryText: event.target.value });
+    };
 
-  onFieldChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const { onChange, query } = this.props;
-    onChange({ ...query, field: event.target.value });
-  };
+    onFieldChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const { onChange, query } = this.props;
+        onChange({ ...query, field: event.target.value });
+    };
 
 
 
