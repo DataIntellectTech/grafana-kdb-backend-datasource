@@ -115,6 +115,27 @@ export class ConfigEditor extends PureComponent<Props, State> {
     onOptionsChange({ ...options, jsonData });
   };
 
+  onSkipTlsToggle = () => {
+
+    const { onOptionsChange, options } = this.props;
+    const jsonData = {
+      ...options.jsonData,
+      skipVerifyTLS: !options.jsonData.skipVerifyTLS
+    };
+    // @ts-ignore
+    onOptionsChange({ ...options, jsonData });
+  };
+
+  onCaCertToggle = () => {
+
+    const { onOptionsChange, options } = this.props;
+    const jsonData = {
+      ...options.jsonData,
+      withCACert: !options.jsonData.withCACert
+    };
+    // @ts-ignore
+    onOptionsChange({ ...options, jsonData });
+  };
 
   onTlsCertificateChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { onOptionsChange, options } = this.props;
@@ -170,6 +191,36 @@ export class ConfigEditor extends PureComponent<Props, State> {
       },
     });
   };
+  onCaCertChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const { onOptionsChange, options } = this.props;
+    const { secureJsonData } = options;
+    onOptionsChange({
+      ...options,
+      secureJsonData: {
+        ...secureJsonData,
+        caCert: event.target.value,
+      },
+    });
+  };
+
+  onCaCertReset = () => {
+    const { onOptionsChange, options } = this.props;
+
+    onOptionsChange({
+      ...options,
+      secureJsonFields: {
+        ...options.secureJsonFields,
+        caCert: false,
+      },
+      secureJsonData: {
+        ...options.secureJsonData,
+        caCert: '',
+      },
+    });
+  };
+
+
+
 
   renderTLS = () => {
     const { options } = this.props;
@@ -202,12 +253,26 @@ export class ConfigEditor extends PureComponent<Props, State> {
                 onChange={this.onTlsCertificateChange}
             />
           </div>
+          {options.jsonData.withCACert &&
+          <div className="gf-form">
+            <SecretFormField
+                isConfigured={(secureJsonFields && secureJsonFields.caCert) as boolean}
+                value={secureJsonData.caCert || ''}
+                label="CA Certificate"
+                placeholder="CA Certificate"
+                labelWidth={7}
+                inputWidth={20}
+                onReset={this.onCaCertReset}
+                onChange={this.onCaCertChange}
+            />
+          </div>}
+
+
         </>
     )
   }
 
   render() {
-
     const { options } = defaults(this.props, defaultConfig);
     const { jsonData, secureJsonFields } = options;
     const secureJsonData = (options.secureJsonData || {}) as MySecureJsonData;
@@ -234,8 +299,6 @@ export class ConfigEditor extends PureComponent<Props, State> {
                 placeholder="Please enter host port"
             />
           </div>
-
-
           <div className="gf-form">
 
             <SecretFormField
@@ -275,9 +338,14 @@ export class ConfigEditor extends PureComponent<Props, State> {
             />
           </div>}
 
+
           {options.jsonData.withTLS && <>{this.renderTLS()}</>}
           <div className="gf-form">
-          <Switch checked={options.jsonData.withTLS} label="Enable TLS" onChange={this.onTlsToggle} />
+          <Switch checked={options.jsonData.withTLS} label="TLS Client Auth" onChange={this.onTlsToggle} />
+            {options.jsonData.withTLS && <>
+            <Switch checked={options.jsonData.skipVerifyTLS} label="Skip TLS Verify" onChange={this.onSkipTlsToggle} />
+            <Switch checked={options.jsonData.withCACert} label="With CA Cert" onChange={this.onCaCertToggle} />
+            </>}
           </div>
 
           <div className="gf-form">
