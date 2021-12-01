@@ -13,10 +13,15 @@ export interface MyDataSourceOptions extends DataSourceJsonData {
   port: number;
   timeout?: string;
   withTLS: boolean;
+  skipVerifyTLS: boolean;
+  withCACert: boolean;
+
 }
 
 export const defaultConfig: Partial<MyDataSourceOptions> = {
   withTLS: false,
+  skipVerifyTLS: false,
+  withCACert: false,
 
 };
 
@@ -28,4 +33,5 @@ export interface MySecureJsonData {
   password: string;
   tlsCertificate?:string;
   tlsKey?:string;
+  caCert?:string;
 }

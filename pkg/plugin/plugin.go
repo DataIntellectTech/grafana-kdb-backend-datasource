@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -52,10 +53,13 @@ type KdbDatasource struct {
 	Port                int    `json:"port"`
 	Timeout             string `json:"timeout"`
 	WithTls             bool   `json:"withTLS"`
+	SkipVertifyTLS      bool   `json:"skipVerifyTLS"`
+	WithCACert          bool   `json:"withCACert"`
 	user                string
 	pass                string
 	tlsCertificate      string
 	tlsKey              string
+	caCert              string
 	kdbHandle           *kdb.KDBConn
 	signals             chan int
 	syncQueue           chan *kdbSyncQuery
@@ -91,6 +95,7 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	var conn *kdb.KDBConn = nil
 
 	if client.WithTls {
+		tlsServerConfig := new(tls.Config)
 		log.DefaultLogger.Info("=========USING TLS==========")
 		tlsCertificate, certOk := settings.DecryptedSecureJSONData["tlsCertificate"]
 		if !certOk {
@@ -104,13 +109,29 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		}
 		client.tlsKey = tlsKey
 
+		if client.SkipVertifyTLS {
+			log.DefaultLogger.Info("-------HANDLE SKIP VERT-------")
+		}
+
+		if client.WithCACert {
+			caCert, keyOk := settings.DecryptedSecureJSONData["caCert"]
+			if !keyOk {
+				log.DefaultLogger.Error("Error decoding CA Cert or no CA Cert provided")
+			}
+			client.caCert = caCert
+			log.DefaultLogger.Info("-------HANDLE CA CERT-------")
+			tlsCaCert := x509.NewCertPool()
+			tlsCaCert.AppendCertsFromPEM([]byte(client.caCert))
+			tlsServerConfig.ClientCAs = tlsCaCert
+		}
+
 		cert, err := tls.X509KeyPair([]byte(client.tlsCertificate), []byte(client.tlsKey))
 		if err != nil {
 			log.DefaultLogger.Error(fmt.Sprintf("Cert convert error %v", err))
 		}
-		tlsServerConfig := new(tls.Config)
-		tlsServerConfig.Certificates = []tls.Certificate{cert}
 
+		tlsServerConfig.Certificates = []tls.Certificate{cert}
+		tlsServerConfig.InsecureSkipVerify = client.SkipVertifyTLS
 		conn, err = kdb.DialTLS(client.Host, client.Port, auth, tlsServerConfig)
 	} else {
 		log.DefaultLogger.Info("=========No TLS==========")
