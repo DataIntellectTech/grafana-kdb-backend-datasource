@@ -14,16 +14,16 @@ export class QueryEditor extends PureComponent<Props> {
         onChange({ ...query, queryText: event.target.value });
     };
 
-    onFieldChange = (event: ChangeEvent<HTMLInputElement>) => {
+    onTimeOutChange = (event: ChangeEvent<HTMLInputElement>) => {
         const { onChange, query } = this.props;
-        onChange({ ...query, field: event.target.value });
+        onChange({ ...query, timeOut: event.target.value });
     };
 
 
 
     render() {
         const query = this.props.query;
-        const { queryText, field } = query;
+        const { queryText, timeOut } = query;
         return (
             <>
                 <div style={{paddingBottom: 10}}>
@@ -41,10 +41,10 @@ export class QueryEditor extends PureComponent<Props> {
                 <FormField
                     inputWidth={15}
                     labelWidth={7}
-                    value={field || ''}
-                    onChange={this.onFieldChange}
+                    value={timeOut || ''}
+                    onChange={this.onTimeOutChange}
                     label="Field"
-                    tooltip="Please enter a Field"
+                    tooltip="Please enter a Timeout"
                 />
                 </div>
 

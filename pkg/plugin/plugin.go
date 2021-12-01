@@ -32,7 +32,7 @@ var (
 
 type QueryModel struct {
 	QueryText string `json:"queryText"`
-	Field     string `json:"field"`
+	Field     string `json:"timeOut"`
 }
 
 type kdbSyncQuery struct {
@@ -65,6 +65,7 @@ type KdbDatasource struct {
 	syncQueue           chan *kdbSyncQuery
 	syncResChan         chan *kdbSyncRes
 	kdbSyncQueryCounter uint32
+	IsOpen              bool
 }
 
 // NewKdbDatasource creates a new datasource instance.
@@ -79,16 +80,21 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	}
 
 	username, ok := settings.DecryptedSecureJSONData["username"]
-	if !ok {
-		log.DefaultLogger.Error("Error - Username property is required")
-		return nil, err
+	if ok {
+		client.user = username
+	} else {
+		client.user = ""
+		log.DefaultLogger.Info("No username provided using default")
+
 	}
 	client.user = username
 
 	pass, ok := settings.DecryptedSecureJSONData["password"]
-	if !ok {
-		log.DefaultLogger.Error("Error - Pass property is required")
-		return nil, err
+	if ok {
+		client.pass = pass
+	} else {
+		client.pass = ""
+		log.DefaultLogger.Info("No password provided using default")
 	}
 	client.pass = pass
 	auth := fmt.Sprintf("%s:%s", client.user, client.pass)
@@ -135,7 +141,11 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		conn, err = kdb.DialTLS(client.Host, client.Port, auth, tlsServerConfig)
 	} else {
 		log.DefaultLogger.Info("=========No TLS==========")
-		timeOutDuration, _ := time.ParseDuration(client.Timeout + "ms")
+		timeOutDuration, err := time.ParseDuration(client.Timeout + "ms")
+		if nil != err {
+			log.DefaultLogger.Info("Using default timeout")
+			timeOutDuration = time.Second
+		}
 		conn, err = kdb.DialKDBTimeout(client.Host, client.Port, auth, timeOutDuration)
 		if err != nil {
 			log.DefaultLogger.Error("Error establishing kdb connection - %s", err.Error())

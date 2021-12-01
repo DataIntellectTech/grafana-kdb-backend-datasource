@@ -1,6 +1,9 @@
 package plugin
 
-import kdb "github.com/sv/kdbgo"
+import (
+	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
+	kdb "github.com/sv/kdbgo"
+)
 
 // support maximum queue of 100 000 per handle
 func (d *KdbDatasource) getKdbSyncQueryId() uint32 {
@@ -33,8 +36,30 @@ func (d *KdbDatasource) syncQueryRunner() {
 				return
 			}
 		case query := <-d.syncQueue:
-			res, err := d.kdbHandle.Call(query.query)
-			d.syncResChan <- &kdbSyncRes{result: res, err: err, id: query.id}
+
+			var OurQuery = &kdb.K{kdb.KC, 0, query.query}
+			err := d.kdbHandle.WriteMessage(1, OurQuery)
+			if err != nil {
+				log.DefaultLogger.Error("Error writing message", err.Error())
+			}
+
+			resdata, err := d.kdbHandleListener()
+			if err != nil {
+				log.DefaultLogger.Error("Error writing message", err.Error())
+			}
+			//res, err := d.kdbHandle.Call(query.query)
+			d.syncResChan <- &kdbSyncRes{result: resdata, err: err, id: query.id}
 		}
 	}
+
+}
+func (d *KdbDatasource) kdbHandleListener() (*kdb.K, error) {
+
+	res, _, err := d.kdbHandle.ReadMessage()
+
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+
 }
