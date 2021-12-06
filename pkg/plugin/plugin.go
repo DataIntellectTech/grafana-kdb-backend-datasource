@@ -163,12 +163,6 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	// making signals channel (this should be done through ctx)
 	log.DefaultLogger.Info("Making signals channel")
 	client.signals = make(chan int)
-	// make channel for synchronous queries
-	log.DefaultLogger.Info("Making synchronous query channel")
-	client.syncQueue = make(chan *kdbSyncQuery)
-	// make channel for synchronous responses
-	log.DefaultLogger.Info("Making synchronous response channel")
-	client.syncResChan = make(chan *kdbSyncRes)
 
 	log.DefaultLogger.Info("KDB Datasource created successfully")
 	return &client, nil
@@ -205,6 +199,16 @@ func (d *KdbDatasource) openConnection() error {
 	log.DefaultLogger.Info(fmt.Sprintf("Dialled %v:%v successfully", d.Host, d.Port))
 	d.kdbHandle = conn
 	d.IsOpen = true
+
+	// make channel for synchronous queries
+	log.DefaultLogger.Info("Making synchronous query channel")
+	d.syncQueue = make(chan *kdbSyncQuery)
+	// make channel for synchronous responses
+	log.DefaultLogger.Info("Making synchronous response channel")
+	d.syncResChan = make(chan *kdbSyncRes)
+	// making raw read channel
+	log.DefaultLogger.Info("Making raw response channel")
+	d.rawReadChan = make(chan *kdbRawRead)
 
 	// start synchronous query listener
 	log.DefaultLogger.Info("Beginning synchronous query listener")
@@ -312,7 +316,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 func (d *KdbDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	log.DefaultLogger.Info("CheckHealth called", "request", req)
 
-	test, err := d.kdbHandle.Call("{1+1}", kdb.Int(2))
+	test, err := d.runKdbQuerySync("1+1", time.Duration(d.dialTimeout)*time.Millisecond)
 	if err != nil {
 		log.DefaultLogger.Info(err.Error())
 		return nil, err
