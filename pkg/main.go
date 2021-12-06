@@ -17,7 +17,7 @@ func main() {
 	// from Grafana to create different instances of SampleDatasource (per datasource
 	// ID). When datasource configuration changed Dispose method will be called and
 	// new datasource instance created using NewSampleDatasource factory.
-	log.DefaultLogger.Info("error kdb data source started")
+	log.DefaultLogger.Info("AquaQ kdb+ data-source initialising")
 	if err := datasource.Manage("aqua-q-kdb-backend-datasource", plugin.NewKdbDatasource, datasource.ManageOpts{}); err != nil {
 		log.DefaultLogger.Error(err.Error())
 		os.Exit(1)

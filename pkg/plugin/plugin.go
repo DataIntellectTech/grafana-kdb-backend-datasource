@@ -33,7 +33,7 @@ var (
 
 type QueryModel struct {
 	QueryText string `json:"queryText"`
-	timeout   string `json:"timeOut"`
+	Timeout   string `json:"timeOut"`
 }
 
 type kdbSyncQuery struct {
@@ -155,11 +155,21 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		client.dialTimeout = timeOutDuration
 	}
 
+	// make channel for synchronous queries
+	log.DefaultLogger.Info("Making synchronous query channel")
+	client.syncQueue = make(chan *kdbSyncQuery)
+	// make channel for synchronous responses
+	log.DefaultLogger.Info("Making synchronous response channel")
+	client.syncResChan = make(chan *kdbSyncRes)
+
 	// Open the kdb Handle
 	err = client.openConnection()
 	if err != nil {
 		log.DefaultLogger.Error(fmt.Sprintf("Error opening handle to kdb+ process when creating datasource: %v", err))
 	}
+	// start synchronous query listener
+	log.DefaultLogger.Info("Beginning synchronous query listener")
+	go client.syncQueryRunner()
 	// making signals channel (this should be done through ctx)
 	log.DefaultLogger.Info("Making signals channel")
 	client.signals = make(chan int)
@@ -172,17 +182,22 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 // created. As soon as datasource settings change detected by SDK old datasource instance will
 // be disposed and a new one will be created using NewKdbDatasource factory function.
 func (d *KdbDatasource) Dispose() {
-
-	log.DefaultLogger.Info("===============RAN DISPOSE===============")
-	d.signals <- 3
-	err := d.kdbHandle.Close()
-	close(d.signals)
-	if err != nil {
-		log.DefaultLogger.Error("Error closing KDB connection", err)
+	log.DefaultLogger.Info("DEVDISPOSE Dispose called")
+	if d.IsOpen {
+		log.DefaultLogger.Info("DEVDISPOSE Handle open when dispose called, closing handle")
+		err := d.closeConnection()
+		if err != nil {
+			log.DefaultLogger.Error("DEVDISPOSE Error closing KDB connection", err)
+		}
 	}
+	d.signals <- 3
+	close(d.signals)
+	close(d.syncQueue)
+	close(d.syncResChan)
 }
 
 func (d *KdbDatasource) openConnection() error {
+	log.DefaultLogger.Info("DEVOPENCONNECTION called")
 	auth := fmt.Sprintf("%s:%s", d.user, d.pass)
 	var conn *kdb.KDBConn = nil
 	var err error
@@ -199,20 +214,10 @@ func (d *KdbDatasource) openConnection() error {
 	log.DefaultLogger.Info(fmt.Sprintf("Dialled %v:%v successfully", d.Host, d.Port))
 	d.kdbHandle = conn
 	d.IsOpen = true
-
-	// make channel for synchronous queries
-	log.DefaultLogger.Info("Making synchronous query channel")
-	d.syncQueue = make(chan *kdbSyncQuery)
-	// make channel for synchronous responses
-	log.DefaultLogger.Info("Making synchronous response channel")
-	d.syncResChan = make(chan *kdbSyncRes)
 	// making raw read channel
 	log.DefaultLogger.Info("Making raw response channel")
 	d.rawReadChan = make(chan *kdbRawRead)
 
-	// start synchronous query listener
-	log.DefaultLogger.Info("Beginning synchronous query listener")
-	go d.syncQueryRunner()
 	// start synchronous handle reader
 	log.DefaultLogger.Info("Beginning handle listener")
 	go d.kdbHandleListener()
@@ -220,10 +225,15 @@ func (d *KdbDatasource) openConnection() error {
 }
 
 func (d *KdbDatasource) closeConnection() error {
+	log.DefaultLogger.Info("DEVCLOSECONNECTION called")
 	err := d.kdbHandle.Close()
+	log.DefaultLogger.Info("DEVCLOSECONNECTION closed handle")
 	if err == nil {
+		log.DefaultLogger.Info("DEVCLOSECONNECTION error closing handle")
 		d.IsOpen = false
+
 	}
+	log.DefaultLogger.Info("DEVCLOSECONNECTION returning")
 	return err
 }
 
@@ -254,43 +264,35 @@ func (d *KdbDatasource) QueryData(ctx context.Context, req *backend.QueryDataReq
 func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	var MyQuery QueryModel
 	log.DefaultLogger.Info(string(query.JSON))
+	log.DefaultLogger.Info("DEVQUERY1 Unmarshalling JSON")
 	err := json.Unmarshal(query.JSON, &MyQuery)
 	if err != nil {
 		log.DefaultLogger.Error("Error decoding query and field -%s", err.Error())
 
 	}
 	response := backend.DataResponse{}
-	if response.Error != nil {
-		return response
-	}
+	log.DefaultLogger.Info(fmt.Sprintf("DEVQUERY2 Interpreting timeout: %v", MyQuery.Timeout))
 
-	log.DefaultLogger.Info("Before response")
-	log.DefaultLogger.Info("Before response")
-
-	tmout, err := strconv.Atoi(MyQuery.timeout)
+	tmout, err := strconv.Atoi(MyQuery.Timeout)
 	if err != nil {
 		log.DefaultLogger.Info(err.Error())
 		response.Error = err
 		return response
 	}
-
+	log.DefaultLogger.Info("DEVQUERY3 Running query against kdb+ process: ")
 	kdbResponse, err := d.runKdbQuerySync(MyQuery.QueryText, time.Duration(tmout)*time.Millisecond)
 	if err != nil {
-		log.DefaultLogger.Info(kdbResponse.String())
-		log.DefaultLogger.Info(err.Error())
 		response.Error = err
 		return response
 
 	}
-	log.DefaultLogger.Info("After response")
+	log.DefaultLogger.Info("DEVQUERY4 Received response from kdb+")
 
 	//table and dicts types here
 	frame := data.NewFrame("response")
-	log.DefaultLogger.Info("Line 170")
 	switch {
 	case kdbResponse.Type == kdb.XT:
 		kdbTable := kdbResponse.Data.(kdb.Table)
-		log.DefaultLogger.Info(kdbResponse.String())
 		tabCols := kdbTable.Columns
 		tabData := kdbTable.Data
 
