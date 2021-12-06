@@ -6,13 +6,14 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"time"
+
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	kdb "github.com/sv/kdbgo"
-	"strconv"
-	"time"
 )
 
 // Make sure SampleDatasource implements required interfaces. This is important to do
@@ -32,12 +33,18 @@ var (
 
 type QueryModel struct {
 	QueryText string `json:"queryText"`
-	Field     string `json:"timeOut"`
+	timeout   string `json:"timeOut"`
 }
 
 type kdbSyncQuery struct {
-	query string
-	id    uint32
+	query   string
+	id      uint32
+	timeout time.Duration
+}
+
+type kdbRawRead struct {
+	result *kdb.K
+	err    error
 }
 
 type kdbSyncRes struct {
@@ -60,9 +67,12 @@ type KdbDatasource struct {
 	tlsCertificate      string
 	tlsKey              string
 	caCert              string
+	tlsServerConfig     *tls.Config
+	dialTimeout         time.Duration
 	kdbHandle           *kdb.KDBConn
 	signals             chan int
 	syncQueue           chan *kdbSyncQuery
+	rawReadChan         chan *kdbRawRead
 	syncResChan         chan *kdbSyncRes
 	kdbSyncQueryCounter uint32
 	IsOpen              bool
@@ -84,21 +94,17 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		client.user = username
 	} else {
 		client.user = ""
-		log.DefaultLogger.Info("No username provided using default")
+		log.DefaultLogger.Info("No username provided; using default")
 
 	}
-	client.user = username
 
 	pass, ok := settings.DecryptedSecureJSONData["password"]
 	if ok {
 		client.pass = pass
 	} else {
 		client.pass = ""
-		log.DefaultLogger.Info("No password provided using default")
+		log.DefaultLogger.Info("No password provided; using default")
 	}
-	client.pass = pass
-	auth := fmt.Sprintf("%s:%s", client.user, client.pass)
-	var conn *kdb.KDBConn = nil
 
 	if client.WithTls {
 		tlsServerConfig := new(tls.Config)
@@ -138,7 +144,7 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 
 		tlsServerConfig.Certificates = []tls.Certificate{cert}
 		tlsServerConfig.InsecureSkipVerify = client.SkipVertifyTLS
-		conn, err = kdb.DialTLS(client.Host, client.Port, auth, tlsServerConfig)
+		client.tlsServerConfig = tlsServerConfig
 	} else {
 		log.DefaultLogger.Info("=========No TLS==========")
 		timeOutDuration, err := time.ParseDuration(client.Timeout + "ms")
@@ -146,15 +152,14 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 			log.DefaultLogger.Info("Using default timeout")
 			timeOutDuration = time.Second
 		}
-		conn, err = kdb.DialKDBTimeout(client.Host, client.Port, auth, timeOutDuration)
-		if err != nil {
-			log.DefaultLogger.Error("Error establishing kdb connection - %s", err.Error())
-			return nil, err
-		}
-		log.DefaultLogger.Info(fmt.Sprintf("Dialled %v:%v successfully", client.Host, client.Port))
+		client.dialTimeout = timeOutDuration
 	}
 
-	client.kdbHandle = conn
+	// Open the kdb Handle
+	err = client.openConnection()
+	if err != nil {
+		log.DefaultLogger.Error(fmt.Sprintf("Error opening handle to kdb+ process when creating datasource: %v", err))
+	}
 	// making signals channel (this should be done through ctx)
 	log.DefaultLogger.Info("Making signals channel")
 	client.signals = make(chan int)
@@ -164,9 +169,7 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	// make channel for synchronous responses
 	log.DefaultLogger.Info("Making synchronous response channel")
 	client.syncResChan = make(chan *kdbSyncRes)
-	// start synchronous listener
-	log.DefaultLogger.Info("Beginning synchronous listener")
-	go client.syncQueryRunner()
+
 	log.DefaultLogger.Info("KDB Datasource created successfully")
 	return &client, nil
 }
@@ -183,6 +186,41 @@ func (d *KdbDatasource) Dispose() {
 	if err != nil {
 		log.DefaultLogger.Error("Error closing KDB connection", err)
 	}
+}
+
+func (d *KdbDatasource) openConnection() error {
+	auth := fmt.Sprintf("%s:%s", d.user, d.pass)
+	var conn *kdb.KDBConn = nil
+	var err error
+	if d.WithTls {
+		conn, err = kdb.DialTLS(d.Host, d.Port, auth, d.tlsServerConfig)
+	} else {
+		conn, err = kdb.DialKDBTimeout(d.Host, d.Port, auth, d.dialTimeout)
+	}
+	if err != nil {
+		log.DefaultLogger.Error("Error establishing kdb connection - %s", err.Error())
+		d.kdbHandle = nil
+		return err
+	}
+	log.DefaultLogger.Info(fmt.Sprintf("Dialled %v:%v successfully", d.Host, d.Port))
+	d.kdbHandle = conn
+	d.IsOpen = true
+
+	// start synchronous query listener
+	log.DefaultLogger.Info("Beginning synchronous query listener")
+	go d.syncQueryRunner()
+	// start synchronous handle reader
+	log.DefaultLogger.Info("Beginning handle listener")
+	go d.kdbHandleListener()
+	return nil
+}
+
+func (d *KdbDatasource) closeConnection() error {
+	err := d.kdbHandle.Close()
+	if err == nil {
+		d.IsOpen = false
+	}
+	return err
 }
 
 // QueryData handles multiple queries and returns multiple responses.
@@ -225,7 +263,14 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	log.DefaultLogger.Info("Before response")
 	log.DefaultLogger.Info("Before response")
 
-	kdbResponse, err := d.runKdbQuerySync(MyQuery.QueryText)
+	tmout, err := strconv.Atoi(MyQuery.timeout)
+	if err != nil {
+		log.DefaultLogger.Info(err.Error())
+		response.Error = err
+		return response
+	}
+
+	kdbResponse, err := d.runKdbQuerySync(MyQuery.QueryText, time.Duration(tmout)*time.Millisecond)
 	if err != nil {
 		log.DefaultLogger.Info(kdbResponse.String())
 		log.DefaultLogger.Info(err.Error())

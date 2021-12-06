@@ -1,6 +1,10 @@
 package plugin
 
 import (
+	"fmt"
+	"io"
+	"time"
+
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	kdb "github.com/sv/kdbgo"
 )
@@ -14,8 +18,8 @@ func (d *KdbDatasource) getKdbSyncQueryId() uint32 {
 	return d.kdbSyncQueryCounter
 }
 
-func (d *KdbDatasource) runKdbQuerySync(query string) (*kdb.K, error) {
-	queryObj := &kdbSyncQuery{query: query, id: d.getKdbSyncQueryId()}
+func (d *KdbDatasource) runKdbQuerySync(query string, timeout time.Duration) (*kdb.K, error) {
+	queryObj := &kdbSyncQuery{query: query, id: d.getKdbSyncQueryId(), timeout: timeout}
 	d.syncQueue <- queryObj
 	for {
 		res := <-d.syncResChan
@@ -36,30 +40,46 @@ func (d *KdbDatasource) syncQueryRunner() {
 				return
 			}
 		case query := <-d.syncQueue:
-
-			var OurQuery = &kdb.K{kdb.KC, 0, query.query}
-			err := d.kdbHandle.WriteMessage(1, OurQuery)
+			var err error
+			// If handle isn't open, attempt to open
+			if !d.IsOpen {
+				err = d.openConnection()
+				// Return error if unable to open handle
+				if err != nil {
+					d.syncResChan <- &kdbSyncRes{result: nil, err: err, id: query.id}
+					continue
+				}
+			}
+			// If handle is open, query the kdb+ process
+			var kdbQueryObj = &kdb.K{Type: kdb.KC, Attr: 0, Data: query.query}
+			err = d.kdbHandle.WriteMessage(1, kdbQueryObj)
 			if err != nil {
 				log.DefaultLogger.Error("Error writing message", err.Error())
+				d.syncResChan <- &kdbSyncRes{result: nil, err: err, id: query.id}
+				continue
 			}
 
-			resdata, err := d.kdbHandleListener()
-			if err != nil {
-				log.DefaultLogger.Error("Error writing message", err.Error())
+			select {
+			case msg := <-d.rawReadChan:
+				d.syncResChan <- &kdbSyncRes{result: msg.result, err: msg.err, id: query.id}
+			case <-time.After(query.timeout):
+				d.syncResChan <- &kdbSyncRes{result: nil, err: fmt.Errorf("Queried timed out after %v miliseconds", query.timeout), id: query.id}
+				d.closeConnection()
 			}
-			//res, err := d.kdbHandle.Call(query.query)
-			d.syncResChan <- &kdbSyncRes{result: resdata, err: err, id: query.id}
 		}
 	}
 
 }
-func (d *KdbDatasource) kdbHandleListener() (*kdb.K, error) {
-
-	res, _, err := d.kdbHandle.ReadMessage()
-
-	if err != nil {
-		return nil, err
+func (d *KdbDatasource) kdbHandleListener() {
+	for {
+		res, _, err := d.kdbHandle.ReadMessage()
+		d.rawReadChan <- &kdbRawRead{result: res, err: err}
+		if err == io.EOF {
+			log.DefaultLogger.Info("Handle closing, returning from kdbHandleListener")
+			d.IsOpen = false
+			close(d.rawReadChan)
+			d.signals <- 3
+			return
+		}
 	}
-	return res, nil
-
 }
