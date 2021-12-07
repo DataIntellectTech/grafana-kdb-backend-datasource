@@ -33,7 +33,7 @@ var (
 
 type QueryModel struct {
 	QueryText string `json:"queryText"`
-	Timeout   string `json:"timeOut"`
+	Timeout   int    `json:"timeOut"`
 }
 
 type kdbSyncQuery struct {
@@ -273,14 +273,18 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	response := backend.DataResponse{}
 	log.DefaultLogger.Info(fmt.Sprintf("DEVQUERY2 Interpreting timeout: %v", MyQuery.Timeout))
 
-	tmout, err := strconv.Atoi(MyQuery.Timeout)
 	if err != nil {
 		log.DefaultLogger.Info(err.Error())
 		response.Error = err
 		return response
 	}
 	log.DefaultLogger.Info("DEVQUERY3 Running query against kdb+ process: ")
-	kdbResponse, err := d.runKdbQuerySync(MyQuery.QueryText, time.Duration(tmout)*time.Millisecond)
+	if MyQuery.Timeout < 1 {
+		MyQuery.Timeout = 10000
+	}
+	log.DefaultLogger.Info(strconv.Itoa(MyQuery.Timeout))
+
+	kdbResponse, err := d.runKdbQuerySync(MyQuery.QueryText, time.Duration(MyQuery.Timeout)*time.Millisecond)
 	if err != nil {
 		response.Error = err
 		return response

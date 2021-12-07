@@ -15,8 +15,10 @@ export class QueryEditor extends PureComponent<Props> {
     };
 
     onTimeOutChange = (event: ChangeEvent<HTMLInputElement>) => {
-        const { onChange, query } = this.props;
-        onChange({ ...query, timeOut: event.target.value });
+        if((/^\d+$/.test(event.target.value) || event.target.value==="")){
+            const { onChange, query } = this.props;
+            onChange({ ...query, timeOut: parseInt(event.target.value, 10)});
+        }
     };
 
 
@@ -29,7 +31,7 @@ export class QueryEditor extends PureComponent<Props> {
                 <div style={{paddingBottom: 10}}>
                 <FormField
                     inputWidth={40}
-                    labelWidth={7}
+                    labelWidth={8}
                     value={queryText || ''}
                     onChange={this.onQueryTextChange}
                     label="KDB Query"
@@ -40,11 +42,11 @@ export class QueryEditor extends PureComponent<Props> {
                 <div style={{paddingBottom: 10}}>
                 <FormField
                     inputWidth={15}
-                    labelWidth={7}
+                    labelWidth={8}
                     value={timeOut || ''}
                     onChange={this.onTimeOutChange}
-                    label="Field"
-                    tooltip="Please enter a Timeout"
+                    label="Timeout (ms)"
+                    tooltip="Please enter a Timeout in ms, default is 10,000 ms"
                 />
                 </div>
 
