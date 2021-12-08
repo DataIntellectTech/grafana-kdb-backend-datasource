@@ -35,3 +35,8 @@ export interface MySecureJsonData {
   tlsKey?:string;
   caCert?:string;
 }
+
+export interface MyVariableQuery extends DataQuery{
+  queryText?: string;
+  timeOut: number;
+}
