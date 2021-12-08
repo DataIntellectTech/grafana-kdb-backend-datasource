@@ -14,22 +14,24 @@ export class QueryEditor extends PureComponent<Props> {
         onChange({ ...query, queryText: event.target.value });
     };
 
-    onFieldChange = (event: ChangeEvent<HTMLInputElement>) => {
-        const { onChange, query } = this.props;
-        onChange({ ...query, field: event.target.value });
+    onTimeOutChange = (event: ChangeEvent<HTMLInputElement>) => {
+        if((/^\d+$/.test(event.target.value) || event.target.value==="")){
+            const { onChange, query } = this.props;
+            onChange({ ...query, timeOut: parseInt(event.target.value, 10)});
+        }
     };
 
 
 
     render() {
         const query = this.props.query;
-        const { queryText, field } = query;
+        const { queryText, timeOut } = query;
         return (
             <>
                 <div style={{paddingBottom: 10}}>
                 <FormField
                     inputWidth={40}
-                    labelWidth={7}
+                    labelWidth={8}
                     value={queryText || ''}
                     onChange={this.onQueryTextChange}
                     label="KDB Query"
@@ -40,11 +42,11 @@ export class QueryEditor extends PureComponent<Props> {
                 <div style={{paddingBottom: 10}}>
                 <FormField
                     inputWidth={15}
-                    labelWidth={7}
-                    value={field || ''}
-                    onChange={this.onFieldChange}
-                    label="Field"
-                    tooltip="Please enter a Field"
+                    labelWidth={8}
+                    value={timeOut || ''}
+                    onChange={this.onTimeOutChange}
+                    label="Timeout (ms)"
+                    tooltip="Please enter a Timeout in ms, default is 10,000 ms"
                 />
                 </div>
 
