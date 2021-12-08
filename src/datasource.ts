@@ -17,13 +17,13 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
 
   async metricFindQuery(query: MyVariableQuery, options?: any):Promise<any> {
 
-
+    let timeout = parseInt(query.timeOut, 10)
     const body: any = {
       queries: [
         { datasourceId:this.id,
           orgId: this.id,
           queryText: query.queryText,
-          timeOut: 1000
+          timeOut: timeout,
         }
       ]
     }
@@ -36,32 +36,19 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
           let values = []
           for (let key in response.data.results){
             for (let result in response.data.results[key].frames){
-
               for (let col in response.data.results[key].frames[result].data.values[0]) {
-
                 values.push({text: response.data.results[key].frames[result].data.values[0][col]})
-
               }
-
-
             }
           }
-
-
           return values
         }).catch(err =>{
           console.log(err)
           err.isHandled = true; // Avoid extra popup warning
-          //const dqs = toDataQueryResponse(err);
-          // if (this.processResponse) {      // Currently no custom response processor required (do all on backend)
-          //  return this.processResponse(dqs);
-          // }
           return ({ text:"ERROR"})
-          //return dqs;
         });
-
     return backendQuery
-    // Convert query results to a MetricFindValue[]
+
 
   }
 

@@ -38,5 +38,5 @@ export interface MySecureJsonData {
 
 export interface MyVariableQuery extends DataQuery{
   queryText?: string;
-  timeOut: number;
+  timeOut: string;
 }
