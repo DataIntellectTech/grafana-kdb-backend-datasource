@@ -1,10 +1,8 @@
 package plugin
 
 import (
-	"context"
 	"encoding/csv"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"runtime"
@@ -12,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	kdb "github.com/sv/kdbgo"
 )
 
-type Cfg struct {
+type TestServerCfg struct {
 	Host      string
 	Port      int
 	User      string
@@ -23,10 +21,10 @@ type Cfg struct {
 	autoStart bool
 }
 
-func getConfig() (Cfg, error) {
+func getConfig() (TestServerCfg, error) {
 	f, err := os.Open("../../test/testConfig.csv")
 	defer f.Close()
-	cfg := Cfg{}
+	cfg := TestServerCfg{}
 	if err != nil {
 		return cfg, err
 	}
@@ -94,10 +92,11 @@ func getConfigAndInit() (*KdbDatasource, *testServer, error) {
 	}
 	ds.Host = cfg.Host
 	ds.Port = cfg.Port
-	ds.User = cfg.User
-	ds.Pass = cfg.Pass
+	ds.user = cfg.User
+	ds.pass = cfg.Pass
 	ds.DialTimeout = time.Duration(time.Second * 5)
 	ds.WithTls = false
+	ds.setupKdbConnectionHandlers()
 	return ds, testSrv, err
 }
 
@@ -128,7 +127,10 @@ func TestOpenConnectionStd(t *testing.T) {
 		t.Errorf("Error loading config: %v", err)
 		return
 	}
-	t.Logf("kdb+ test server: %s:%v:%s:%s", ds.Host, ds.Port, ds.User, ds.Pass)
+	t.Logf("kdb+ test server: %s:%v:%s:%s", ds.Host, ds.Port, ds.user, ds.pass)
+	t.Logf("Mocking KdbHandleListener function...")
+	ds.KdbHandleListener = func() {}
+
 	err = ds.openConnection()
 	if err != nil {
 		t.Errorf("Error opening connection: %v", err)
@@ -148,7 +150,10 @@ func TestCloseConnection(t *testing.T) {
 		t.Errorf("Error loading config: %v", err)
 		return
 	}
-	t.Logf("kdb+ test server: %s:%v:%s:%s", ds.Host, ds.Port, ds.User, ds.Pass)
+	t.Logf("kdb+ test server: %s:%v:%s:%s", ds.Host, ds.Port, ds.user, ds.pass)
+	t.Logf("Mocking KdbHandleListener function...")
+	ds.KdbHandleListener = func() {}
+
 	err = ds.openConnection()
 	if err != nil {
 		t.Errorf("Error opening connection: %v", err)
@@ -173,7 +178,105 @@ func TestCloseConnection(t *testing.T) {
 	return
 }
 
-func TestRunKdbQuerySync(t *testing.T) {
+func TestKdbHandleListenerResponses(t *testing.T) {
+	// Init
+	ds := &KdbDatasource{}
+	ds.setupKdbConnectionHandlers()
+	// Set handle assignment as open
+	ds.IsOpen = true
+	// create raw results channel
+	ds.rawReadChan = make(chan *kdbRawRead)
+	// Make mock readConnection objects and function to use during tests
+	mockKdbObj := kdb.Long(21)
+	mockErr := kdb.Error(fmt.Errorf("KDB ERROR"))
+	testCounter := 0
+	mockReaderFunc := func() (*kdb.K, kdb.ReqType, error) {
+		switch testCounter {
+		case 0:
+			testCounter += 1
+			return mockKdbObj, kdb.RESPONSE, nil
+		case 1:
+			testCounter += 1
+			return mockErr, kdb.RESPONSE, nil
+		}
+		return nil, -1, fmt.Errorf("STOP")
+	}
+
+	// Start listener test
+	ds.ReadConnection = mockReaderFunc
+	go ds.kdbHandleListener()
+	// Test standard kdb+ object return
+	res := <-ds.rawReadChan
+	if res.err != nil {
+		t.Errorf("Standard kdb+ object read failed: %v", res.err)
+		testCounter = 3
+		res = <-ds.rawReadChan
+		close(ds.rawReadChan)
+		return
+	}
+	if res.result != mockKdbObj {
+		t.Errorf("Standard kdb+ object read not as expected: %v", res.result)
+		testCounter = 3
+		res = <-ds.rawReadChan
+		close(ds.rawReadChan)
+		return
+	}
+	t.Logf("Standard kdb+ object read successful")
+
+	// Test error kdb+ object return
+	res = <-ds.rawReadChan
+	if res.err != nil {
+		t.Errorf("Error kdb+ object read failed: %v", res.err)
+		testCounter = 3
+		res = <-ds.rawReadChan
+		close(ds.rawReadChan)
+		return
+	}
+	if res.result != mockErr {
+		t.Errorf("Error kdb+ object read not as expected: %v", res.result)
+		testCounter = 3
+		res = <-ds.rawReadChan
+		close(ds.rawReadChan)
+		return
+	}
+	t.Logf("Error kdb+ object read successful")
+
+	// Close goroutine and channel
+	res = <-ds.rawReadChan
+	if res.err == nil {
+		t.Logf("EOF kdb+ object read did not throw error as expected, subsequent tests may fail")
+		close(ds.rawReadChan)
+		return
+	}
+	t.Logf("Closed goroutine successfully")
+}
+
+func TestKdbHandleListenerClose(t *testing.T) {
+	// Init
+	ds := &KdbDatasource{}
+	ds.setupKdbConnectionHandlers()
+	// Set handle assignment as open
+	ds.IsOpen = true
+	// create raw results channel
+	ds.rawReadChan = make(chan *kdbRawRead)
+	hardErr := fmt.Errorf("Failed to read message header:EOF")
+	returnEOF := func() (*kdb.K, kdb.ReqType, error) { return nil, -1, hardErr }
+
+	ds.ReadConnection = returnEOF
+	go ds.kdbHandleListener()
+	res := <-ds.rawReadChan
+	if res.err == nil {
+		t.Errorf("No error returned to raw read channel after bad read")
+		return
+	}
+	if ds.IsOpen == true {
+		t.Errorf("Handle not assigned as closed after bad read")
+		return
+	}
+	t.Logf("Bad read handled successfully")
+}
+
+/* func TestRunKdbQuerySync(t *testing.T) {
 	ds := KdbDatasource{}
 	log.Print(ds)
 
@@ -197,4 +300,4 @@ func TestQueryData(t *testing.T) {
 	if len(resp.Responses) != 1 {
 		t.Fatal("QueryData must return a response")
 	}
-}
+} */

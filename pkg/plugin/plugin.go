@@ -62,8 +62,8 @@ type KdbDatasource struct {
 	WithTls             bool   `json:"withTLS"`
 	SkipVertifyTLS      bool   `json:"skipVerifyTLS"`
 	WithCACert          bool   `json:"withCACert"`
-	User                string
-	Pass                string
+	user                string
+	pass                string
 	TlsCertificate      string
 	TlsKey              string
 	CaCert              string
@@ -76,6 +76,11 @@ type KdbDatasource struct {
 	syncResChan         chan *kdbSyncRes
 	kdbSyncQueryCounter uint32
 	IsOpen              bool
+	KdbHandleListener   func()
+	OpenConnection      func() error
+	CloseConnection     func() error
+	WriteConnection     func(kdb.ReqType, *kdb.K) error
+	ReadConnection      func() (*kdb.K, kdb.ReqType, error)
 }
 
 // NewKdbDatasource creates a new datasource instance.
@@ -91,18 +96,18 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 
 	username, ok := settings.DecryptedSecureJSONData["username"]
 	if ok {
-		client.User = username
+		client.user = username
 	} else {
-		client.User = ""
+		client.user = ""
 		log.DefaultLogger.Info("No username provided; using default")
 
 	}
 
 	pass, ok := settings.DecryptedSecureJSONData["password"]
 	if ok {
-		client.Pass = pass
+		client.pass = pass
 	} else {
-		client.Pass = ""
+		client.pass = ""
 		log.DefaultLogger.Info("No password provided; using default")
 	}
 
@@ -154,6 +159,9 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		}
 		client.DialTimeout = timeOutDuration
 	}
+	// Set IPC handler functions
+	client.setupKdbConnectionHandlers()
+	client.IsOpen = false
 
 	// make channel for synchronous queries
 	log.DefaultLogger.Info("Making synchronous query channel")
@@ -163,7 +171,7 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	client.syncResChan = make(chan *kdbSyncRes)
 
 	// Open the kdb Handle
-	err = client.openConnection()
+	err = client.OpenConnection()
 	if err != nil {
 		log.DefaultLogger.Error(fmt.Sprintf("Error opening handle to kdb+ process when creating datasource: %v", err))
 	}
@@ -182,12 +190,12 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 // created. As soon as datasource settings change detected by SDK old datasource instance will
 // be disposed and a new one will be created using NewKdbDatasource factory function.
 func (d *KdbDatasource) Dispose() {
-	log.DefaultLogger.Info("DEVDISPOSE Dispose called")
+	log.DefaultLogger.Info("Dispose called")
 	if d.IsOpen {
-		log.DefaultLogger.Info("DEVDISPOSE Handle open when dispose called, closing handle")
-		err := d.closeConnection()
+		log.DefaultLogger.Info("Handle open when dispose called, closing handle")
+		err := d.CloseConnection()
 		if err != nil {
-			log.DefaultLogger.Error("DEVDISPOSE Error closing KDB connection", err)
+			log.DefaultLogger.Error("Error closing KDB connection", err)
 		}
 	}
 	d.signals <- 3
@@ -198,7 +206,7 @@ func (d *KdbDatasource) Dispose() {
 
 func (d *KdbDatasource) openConnection() error {
 	log.DefaultLogger.Info(fmt.Sprintf("Opening connection to %s:%v ...", d.Host, d.Port))
-	auth := fmt.Sprintf("%s:%s", d.User, d.Pass)
+	auth := fmt.Sprintf("%s:%s", d.user, d.pass)
 	var conn *kdb.KDBConn = nil
 	var err error
 	if d.WithTls {
@@ -220,7 +228,7 @@ func (d *KdbDatasource) openConnection() error {
 
 	// start synchronous handle reader
 	log.DefaultLogger.Info("Beginning handle listener")
-	go d.kdbHandleListener()
+	go d.KdbHandleListener()
 	return nil
 }
 
@@ -239,10 +247,6 @@ func (d *KdbDatasource) closeConnection() error {
 // The QueryDataResponse contains a map of RefID to the response for each query, and each response
 // contains Frames ([]*Frame).
 func (d *KdbDatasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	log.DefaultLogger.Info("QueryData called", "request", req)
-	log.DefaultLogger.Info(fmt.Sprintf("datasource %v", d.Host))
-	log.DefaultLogger.Info(fmt.Sprintf("datasource %v", d.Port))
-	log.DefaultLogger.Info(fmt.Sprintf("datasource %v", d.KdbHandle))
 	// create response struct
 	response := backend.NewQueryDataResponse()
 
