@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	kdb "github.com/sv/kdbgo"
 )
 
@@ -274,6 +275,82 @@ func TestKdbHandleListenerClose(t *testing.T) {
 		return
 	}
 	t.Logf("Bad read handled successfully")
+}
+
+func TestCheckHealthSuccess(t *testing.T) {
+	// Init
+	ds := &KdbDatasource{}
+	ds.setupKdbConnectionHandlers()
+	// Set handle assignment as open
+	ds.IsOpen = true
+	ds.RunKdbQuerySync = func(string, time.Duration) (*kdb.K, error) { return kdb.Long(2), nil }
+	res, err := ds.CheckHealth(nil, nil)
+	if err != nil {
+		t.Errorf("Error running CheckHealth: %v", err)
+		return
+	}
+	if res.Status != backend.HealthStatusOk {
+		t.Errorf("Successful CheckHealth did not return OK health status")
+		return
+	}
+}
+
+func TestCheckHealthFailValue(t *testing.T) {
+	// Init
+	ds := &KdbDatasource{}
+	ds.setupKdbConnectionHandlers()
+	// Set handle assignment as open
+	ds.IsOpen = true
+	ds.RunKdbQuerySync = func(string, time.Duration) (*kdb.K, error) { return kdb.Long(3), nil }
+	res, err := ds.CheckHealth(nil, nil)
+	if err != nil {
+		t.Errorf("Error running CheckHealth: %v", err)
+		return
+	}
+	if res.Status != backend.HealthStatusError {
+		t.Errorf("Erroring CheckHealth did not return Error health status")
+		return
+	}
+}
+
+func TestCheckHealthFailType(t *testing.T) {
+	// Init
+	ds := &KdbDatasource{}
+	ds.setupKdbConnectionHandlers()
+	// Set handle assignment as open
+	ds.IsOpen = true
+	ds.RunKdbQuerySync = func(string, time.Duration) (*kdb.K, error) {
+		return kdb.Error(fmt.Errorf("kdb+ server-side error")), nil
+	}
+	res, err := ds.CheckHealth(nil, nil)
+	if err != nil {
+		t.Errorf("Error running CheckHealth: %v", err)
+		return
+	}
+	if res.Status != backend.HealthStatusError {
+		t.Errorf("Erroring CheckHealth did not return Error health status")
+		return
+	}
+}
+
+func TestCheckHealthFailError(t *testing.T) {
+	// Init
+	ds := &KdbDatasource{}
+	ds.setupKdbConnectionHandlers()
+	// Set handle assignment as open
+	ds.IsOpen = true
+	ds.RunKdbQuerySync = func(string, time.Duration) (*kdb.K, error) {
+		return nil, fmt.Errorf("Go backend-side error")
+	}
+	res, err := ds.CheckHealth(nil, nil)
+	if err != nil {
+		t.Errorf("Error running CheckHealth: %v", err)
+		return
+	}
+	if res.Status != backend.HealthStatusError {
+		t.Errorf("Erroring CheckHealth did not return Error health status")
+		return
+	}
 }
 
 /* func TestRunKdbQuerySync(t *testing.T) {

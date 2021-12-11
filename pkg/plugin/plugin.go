@@ -77,6 +77,7 @@ type KdbDatasource struct {
 	kdbSyncQueryCounter uint32
 	IsOpen              bool
 	KdbHandleListener   func()
+	RunKdbQuerySync     func(string, time.Duration) (*kdb.K, error)
 	OpenConnection      func() error
 	CloseConnection     func() error
 	WriteConnection     func(kdb.ReqType, *kdb.K) error
@@ -166,21 +167,23 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	// make channel for synchronous queries
 	log.DefaultLogger.Info("Making synchronous query channel")
 	client.syncQueue = make(chan *kdbSyncQuery)
+
 	// make channel for synchronous responses
 	log.DefaultLogger.Info("Making synchronous response channel")
 	client.syncResChan = make(chan *kdbSyncRes)
+
+	// making signals channel (this should be done through ctx)
+	log.DefaultLogger.Info("Making signals channel")
+	client.signals = make(chan int)
 
 	// Open the kdb Handle
 	err = client.OpenConnection()
 	if err != nil {
 		log.DefaultLogger.Error(fmt.Sprintf("Error opening handle to kdb+ process when creating datasource: %v", err))
 	}
+
 	// start synchronous query listener
-	log.DefaultLogger.Info("Beginning synchronous query listener")
 	go client.syncQueryRunner()
-	// making signals channel (this should be done through ctx)
-	log.DefaultLogger.Info("Making signals channel")
-	client.signals = make(chan int)
 
 	log.DefaultLogger.Info("KDB Datasource created successfully")
 	return &client, nil
@@ -285,7 +288,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	}
 	log.DefaultLogger.Info(strconv.Itoa(MyQuery.Timeout))
 
-	kdbResponse, err := d.runKdbQuerySync(MyQuery.QueryText, time.Duration(MyQuery.Timeout)*time.Millisecond)
+	kdbResponse, err := d.RunKdbQuerySync(MyQuery.QueryText, time.Duration(MyQuery.Timeout)*time.Millisecond)
 	if err != nil {
 		response.Error = err
 		return response
@@ -323,22 +326,34 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 func (d *KdbDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	log.DefaultLogger.Info("CheckHealth called", "request", req)
 
-	test, err := d.runKdbQuerySync("1+1", time.Duration(d.DialTimeout)*time.Millisecond)
+	test, err := d.RunKdbQuerySync("1+1", time.Duration(d.DialTimeout)*time.Millisecond)
 	if err != nil {
-		log.DefaultLogger.Info(err.Error())
-		return nil, err
+		log.DefaultLogger.Error("CheckHealth error: %v", err)
+		return &backend.CheckHealthResult{Status: backend.HealthStatusError, Message: fmt.Sprintf("Error querying kdb+ process: %v", err)}, nil
 	}
-	var status = backend.HealthStatusError
+	var status = backend.HealthStatusUnknown
 	var message = ""
-	x, _ := test.Data.(int64)
 
-	if x == 2 {
+	// Test response type
+	if test.Type != -kdb.KJ {
+		status = backend.HealthStatusError
+		message = fmt.Sprintf("kdb+ result not of expected type; received type %v", test.Type)
+		log.DefaultLogger.Info(fmt.Sprintf("Response from kdb+ incorrect type. Received object: %v", test.Data))
+		return &backend.CheckHealthResult{
+			Status:  status,
+			Message: message,
+		}, nil
+	}
+	// Type assert response
+	val := test.Data.(int64)
+
+	if val == 2 {
 		status = backend.HealthStatusOk
-		message = "kdb connected succesfully"
+		message = "kdb+ connected succesfully"
 
 	} else {
 		status = backend.HealthStatusError
-		message = "kdb connection failed"
+		message = fmt.Sprintf("kdb+ response to \"1+1\" was correct type but incorrect value (returned %v)", val)
 
 	}
 

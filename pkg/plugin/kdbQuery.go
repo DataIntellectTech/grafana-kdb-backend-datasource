@@ -31,6 +31,7 @@ func (d *KdbDatasource) runKdbQuerySync(query string, timeout time.Duration) (*k
 }
 
 func (d *KdbDatasource) syncQueryRunner() {
+	log.DefaultLogger.Info("Beginning synchronous query listener")
 	for {
 		select {
 		case signal := <-d.signals:
