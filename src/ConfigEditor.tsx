@@ -231,6 +231,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
         <>
           <div className="gf-form">
             <SecretFormField
+                name="TLSKeyInputField"
                 isConfigured={(secureJsonFields && secureJsonFields.tlsKey) as boolean}
                 value={secureJsonData.tlsKey || ''}
                 label="TLS Key"
@@ -243,6 +244,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
           </div>
           <div className="gf-form">
             <SecretFormField
+                name="TLSCertInputField"
                 isConfigured={(secureJsonFields && secureJsonFields.tlsCertificate) as boolean}
                 value={secureJsonData.tlsCertificate || ''}
                 label="TLS Certificate"
@@ -256,6 +258,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
           {options.jsonData.withCACert &&
           <div className="gf-form">
             <SecretFormField
+                name="TLSCAInputField"
                 isConfigured={(secureJsonFields && secureJsonFields.caCert) as boolean}
                 value={secureJsonData.caCert || ''}
                 label="CA Certificate"
@@ -281,6 +284,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
 
           <div className="gf-form">
             <FormField
+                name="HostInputField"
                 label="Host"
                 labelWidth={7}
                 inputWidth={20}
@@ -291,6 +295,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
           </div>
           <div className="gf-form">
             <FormField
+                name="PortInputField"
                 label="Port"
                 labelWidth={7}
                 inputWidth={20}
@@ -302,6 +307,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
           <div className="gf-form">
 
             <SecretFormField
+                name="UsernameInputField"
                 isConfigured={(secureJsonFields && secureJsonFields.username) as boolean}
                 value={secureJsonData.username || ''}
                 label="Username"
@@ -316,6 +322,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
 
           <div className="gf-form">
             <SecretFormField
+                name="PasswordInputField"
                 isConfigured={(secureJsonFields && secureJsonFields.password) as boolean}
                 value={secureJsonData.password || ''}
                 label="Password"
@@ -329,6 +336,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
           {!options.jsonData.withTLS &&
           <div className="gf-form">
             <FormField
+                name="TimeoutInputField"
                 label="Timeout"
                 labelWidth={7}
                 inputWidth={20}
