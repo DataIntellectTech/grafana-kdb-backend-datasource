@@ -267,22 +267,19 @@ func (d *KdbDatasource) QueryData(ctx context.Context, req *backend.QueryDataReq
 
 func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	var MyQuery QueryModel
-	log.DefaultLogger.Info(string(query.JSON))
-	log.DefaultLogger.Info("DEVQUERY1 Unmarshalling JSON")
 	err := json.Unmarshal(query.JSON, &MyQuery)
 	if err != nil {
 		log.DefaultLogger.Error("Error decoding query and field -%s", err.Error())
 
 	}
 	response := backend.DataResponse{}
-	log.DefaultLogger.Info(fmt.Sprintf("DEVQUERY2 Interpreting timeout: %v", MyQuery.Timeout))
 
 	if err != nil {
 		log.DefaultLogger.Info(err.Error())
 		response.Error = err
 		return response
 	}
-	log.DefaultLogger.Info("DEVQUERY3 Running query against kdb+ process: ")
+
 	if MyQuery.Timeout < 1 {
 		MyQuery.Timeout = 10000
 	}
@@ -294,7 +291,6 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 		return response
 
 	}
-	log.DefaultLogger.Info("DEVQUERY4 Received response from kdb+")
 
 	//table and dicts types here
 	frame := data.NewFrame("response")
@@ -313,9 +309,8 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 		log.DefaultLogger.Error(e)
 		return response
 	}
-	log.DefaultLogger.Info("Line 186")
-	response.Frames = append(response.Frames, frame)
 
+	response.Frames = append(response.Frames, frame)
 	return response
 }
 
