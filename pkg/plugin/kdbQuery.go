@@ -54,7 +54,7 @@ func (d *KdbDatasource) syncQueryRunner() {
 			}
 			// If handle is open, query the kdb+ process
 			var kdbQueryObj = &kdb.K{Type: kdb.KC, Attr: kdb.NONE, Data: query.query}
-			err = d.kdbHandle.WriteMessage(kdb.SYNC, kdbQueryObj)
+			err = d.KdbHandle.WriteMessage(kdb.SYNC, kdbQueryObj)
 			if err != nil {
 				log.DefaultLogger.Error("Error writing message", err.Error())
 				d.syncResChan <- &kdbSyncRes{result: nil, err: err, id: query.id}
@@ -78,7 +78,7 @@ func (d *KdbDatasource) kdbHandleListener() {
 	kdbEOF := "Failed to read message header:"
 	for {
 		log.DefaultLogger.Info("READING HANDLE RESPONSE")
-		res, _, err := d.kdbHandle.ReadMessage()
+		res, _, err := d.KdbHandle.ReadMessage()
 		if err != nil {
 			log.DefaultLogger.Info(err.Error())
 			if strings.Contains(err.Error(), kdbEOF) {

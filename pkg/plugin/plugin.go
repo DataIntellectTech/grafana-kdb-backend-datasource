@@ -62,14 +62,14 @@ type KdbDatasource struct {
 	WithTls             bool   `json:"withTLS"`
 	SkipVertifyTLS      bool   `json:"skipVerifyTLS"`
 	WithCACert          bool   `json:"withCACert"`
-	user                string
-	pass                string
-	tlsCertificate      string
-	tlsKey              string
-	caCert              string
-	tlsServerConfig     *tls.Config
-	dialTimeout         time.Duration
-	kdbHandle           *kdb.KDBConn
+	User                string
+	Pass                string
+	TlsCertificate      string
+	TlsKey              string
+	CaCert              string
+	TlsServerConfig     *tls.Config
+	DialTimeout         time.Duration
+	KdbHandle           *kdb.KDBConn
 	signals             chan int
 	syncQueue           chan *kdbSyncQuery
 	rawReadChan         chan *kdbRawRead
@@ -91,18 +91,18 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 
 	username, ok := settings.DecryptedSecureJSONData["username"]
 	if ok {
-		client.user = username
+		client.User = username
 	} else {
-		client.user = ""
+		client.User = ""
 		log.DefaultLogger.Info("No username provided; using default")
 
 	}
 
 	pass, ok := settings.DecryptedSecureJSONData["password"]
 	if ok {
-		client.pass = pass
+		client.Pass = pass
 	} else {
-		client.pass = ""
+		client.Pass = ""
 		log.DefaultLogger.Info("No password provided; using default")
 	}
 
@@ -113,13 +113,13 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		if !certOk {
 			log.DefaultLogger.Info("Error decoding TLS Cert or no TLS Cert provided")
 		}
-		client.tlsCertificate = tlsCertificate
+		client.TlsCertificate = tlsCertificate
 
 		tlsKey, keyOk := settings.DecryptedSecureJSONData["tlsKey"]
 		if !keyOk {
 			log.DefaultLogger.Error("Error decoding TLS Key or no TLS Key provided")
 		}
-		client.tlsKey = tlsKey
+		client.TlsKey = tlsKey
 
 		if client.SkipVertifyTLS {
 			log.DefaultLogger.Info("-------HANDLE SKIP VERT-------")
@@ -130,21 +130,21 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 			if !keyOk {
 				log.DefaultLogger.Error("Error decoding CA Cert or no CA Cert provided")
 			}
-			client.caCert = caCert
+			client.CaCert = caCert
 			log.DefaultLogger.Info("-------HANDLE CA CERT-------")
 			tlsCaCert := x509.NewCertPool()
-			tlsCaCert.AppendCertsFromPEM([]byte(client.caCert))
+			tlsCaCert.AppendCertsFromPEM([]byte(client.CaCert))
 			tlsServerConfig.ClientCAs = tlsCaCert
 		}
 
-		cert, err := tls.X509KeyPair([]byte(client.tlsCertificate), []byte(client.tlsKey))
+		cert, err := tls.X509KeyPair([]byte(client.TlsCertificate), []byte(client.TlsKey))
 		if err != nil {
 			log.DefaultLogger.Error(fmt.Sprintf("Cert convert error %v", err))
 		}
 
 		tlsServerConfig.Certificates = []tls.Certificate{cert}
 		tlsServerConfig.InsecureSkipVerify = client.SkipVertifyTLS
-		client.tlsServerConfig = tlsServerConfig
+		client.TlsServerConfig = tlsServerConfig
 	} else {
 		log.DefaultLogger.Info("=========No TLS==========")
 		timeOutDuration, err := time.ParseDuration(client.Timeout + "ms")
@@ -152,7 +152,7 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 			log.DefaultLogger.Info("Using default timeout")
 			timeOutDuration = time.Second
 		}
-		client.dialTimeout = timeOutDuration
+		client.DialTimeout = timeOutDuration
 	}
 
 	// make channel for synchronous queries
@@ -197,22 +197,22 @@ func (d *KdbDatasource) Dispose() {
 }
 
 func (d *KdbDatasource) openConnection() error {
-	log.DefaultLogger.Info("DEVOPENCONNECTION called")
-	auth := fmt.Sprintf("%s:%s", d.user, d.pass)
+	log.DefaultLogger.Info(fmt.Sprintf("Opening connection to %s:%v ...", d.Host, d.Port))
+	auth := fmt.Sprintf("%s:%s", d.User, d.Pass)
 	var conn *kdb.KDBConn = nil
 	var err error
 	if d.WithTls {
-		conn, err = kdb.DialTLS(d.Host, d.Port, auth, d.tlsServerConfig)
+		conn, err = kdb.DialTLS(d.Host, d.Port, auth, d.TlsServerConfig)
 	} else {
-		conn, err = kdb.DialKDBTimeout(d.Host, d.Port, auth, d.dialTimeout)
+		conn, err = kdb.DialKDBTimeout(d.Host, d.Port, auth, d.DialTimeout)
 	}
 	if err != nil {
-		log.DefaultLogger.Error("Error establishing kdb connection - %s", err.Error())
-		d.kdbHandle = nil
+		log.DefaultLogger.Error(fmt.Sprintf("Error establishing kdb connection - %s", err.Error()))
+		d.KdbHandle = nil
 		return err
 	}
-	log.DefaultLogger.Info(fmt.Sprintf("Dialled %v:%v successfully", d.Host, d.Port))
-	d.kdbHandle = conn
+	log.DefaultLogger.Info(fmt.Sprintf("Dialled %s:%v successfully", d.Host, d.Port))
+	d.KdbHandle = conn
 	d.IsOpen = true
 	// making raw read channel
 	log.DefaultLogger.Info("Making raw response channel")
@@ -225,15 +225,12 @@ func (d *KdbDatasource) openConnection() error {
 }
 
 func (d *KdbDatasource) closeConnection() error {
-	log.DefaultLogger.Info("DEVCLOSECONNECTION called")
-	err := d.kdbHandle.Close()
-	log.DefaultLogger.Info("DEVCLOSECONNECTION closed handle")
+	log.DefaultLogger.Info(fmt.Sprintf("Closing connection to %s:%v ...", d.Host, d.Port))
+	err := d.KdbHandle.Close()
 	if err == nil {
-		log.DefaultLogger.Info("DEVCLOSECONNECTION error closing handle")
+		log.DefaultLogger.Error(fmt.Sprintf("Error closing handle to %s:%v ...", d.Host, d.Port))
 		d.IsOpen = false
-
 	}
-	log.DefaultLogger.Info("DEVCLOSECONNECTION returning")
 	return err
 }
 
@@ -245,7 +242,7 @@ func (d *KdbDatasource) QueryData(ctx context.Context, req *backend.QueryDataReq
 	log.DefaultLogger.Info("QueryData called", "request", req)
 	log.DefaultLogger.Info(fmt.Sprintf("datasource %v", d.Host))
 	log.DefaultLogger.Info(fmt.Sprintf("datasource %v", d.Port))
-	log.DefaultLogger.Info(fmt.Sprintf("datasource %v", d.kdbHandle))
+	log.DefaultLogger.Info(fmt.Sprintf("datasource %v", d.KdbHandle))
 	// create response struct
 	response := backend.NewQueryDataResponse()
 
@@ -322,7 +319,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 func (d *KdbDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	log.DefaultLogger.Info("CheckHealth called", "request", req)
 
-	test, err := d.runKdbQuerySync("1+1", time.Duration(d.dialTimeout)*time.Millisecond)
+	test, err := d.runKdbQuerySync("1+1", time.Duration(d.DialTimeout)*time.Millisecond)
 	if err != nil {
 		log.DefaultLogger.Info(err.Error())
 		return nil, err
