@@ -1,4 +1,4 @@
-module github.com/grafana/grafana-starter-datasource-backend
+module github.com/AquaQAnalytics/grafana-kdb-backend-datasource
 
 go 1.16
 
