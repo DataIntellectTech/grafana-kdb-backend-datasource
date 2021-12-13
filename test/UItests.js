@@ -1,4 +1,4 @@
-const {Builder, By, Key, until} = require('selenium-webdriver');
+const {Builder, By, until} = require('selenium-webdriver');
 
 const grafHost = "http://localhost:3000"
 const grafUser = "admin" 
