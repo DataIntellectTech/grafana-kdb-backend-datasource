@@ -13,6 +13,7 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
       ...query,
       queryText: query.queryText ? templateSrv.replace(query.queryText) : '',
     };
+
   }
 
   async metricFindQuery(query: MyVariableQuery, options?: any):Promise<any> {
