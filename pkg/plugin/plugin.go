@@ -86,7 +86,6 @@ type KdbDatasource struct {
 
 // NewKdbDatasource creates a new datasource instance.
 func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-	log.DefaultLogger.Info(string(settings.JSONData))
 
 	client := KdbDatasource{}
 	err := json.Unmarshal(settings.JSONData, &client)
@@ -114,7 +113,7 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 
 	if client.WithTls {
 		tlsServerConfig := new(tls.Config)
-		log.DefaultLogger.Info("=========USING TLS==========")
+		log.DefaultLogger.Info("TLS enabled for new kdb datasource, creating tls config...")
 		tlsCertificate, certOk := settings.DecryptedSecureJSONData["tlsCertificate"]
 		if !certOk {
 			log.DefaultLogger.Info("Error decoding TLS Cert or no TLS Cert provided")
@@ -128,7 +127,8 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		client.TlsKey = tlsKey
 
 		if client.SkipVertifyTLS {
-			log.DefaultLogger.Info("-------HANDLE SKIP VERT-------")
+			tlsServerConfig.InsecureSkipVerify = true
+			log.DefaultLogger.Info("New kdb+ datasource config setup to skip TLS verification")
 		}
 
 		if client.WithCACert {
@@ -137,7 +137,7 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 				log.DefaultLogger.Error("Error decoding CA Cert or no CA Cert provided")
 			}
 			client.CaCert = caCert
-			log.DefaultLogger.Info("-------HANDLE CA CERT-------")
+			log.DefaultLogger.Info("Setting custom CA certificate...")
 			tlsCaCert := x509.NewCertPool()
 			tlsCaCert.AppendCertsFromPEM([]byte(client.CaCert))
 			tlsServerConfig.ClientCAs = tlsCaCert
@@ -152,7 +152,6 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		tlsServerConfig.InsecureSkipVerify = client.SkipVertifyTLS
 		client.TlsServerConfig = tlsServerConfig
 	} else {
-		log.DefaultLogger.Info("=========No TLS==========")
 		timeOutDuration, err := time.ParseDuration(client.Timeout + "ms")
 		if nil != err {
 			log.DefaultLogger.Info("Using default timeout")
@@ -289,7 +288,6 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	if err != nil {
 		response.Error = err
 		return response
-
 	}
 
 	//table and dicts types here
