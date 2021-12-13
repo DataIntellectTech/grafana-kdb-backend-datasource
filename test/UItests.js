@@ -28,10 +28,9 @@ async function TestNewDatasource(driver) {
   await driver.findElement(By.name("PasswordInputField")).sendKeys("pass")
   await driver.findElement(By.name("TimeoutInputField")).sendKeys("5000")
   await driver.findElement(By.className("btn btn-primary")).click()
+  await driver.wait(until.elementLocated(By.className("alert-success alert")), 6000)
   var successAlerts = await driver.findElements(By.className("alert-success alert"))
-  var failAlerts = await driver.findElements(By.className("alert-fail alert"))
-  if (successAlerts.length > 0) return true
-  if (failAlerts.length > 0) return false
+  return successAlerts.length > 0
 }
 
 async function main() {
