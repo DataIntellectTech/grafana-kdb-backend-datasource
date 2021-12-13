@@ -127,7 +127,6 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		client.TlsKey = tlsKey
 
 		if client.SkipVertifyTLS {
-			tlsServerConfig.InsecureSkipVerify = true
 			log.DefaultLogger.Info("New kdb+ datasource config setup to skip TLS verification")
 		}
 
@@ -151,14 +150,13 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		tlsServerConfig.Certificates = []tls.Certificate{cert}
 		tlsServerConfig.InsecureSkipVerify = client.SkipVertifyTLS
 		client.TlsServerConfig = tlsServerConfig
-	} else {
-		timeOutDuration, err := time.ParseDuration(client.Timeout + "ms")
-		if nil != err {
-			log.DefaultLogger.Info("Using default timeout")
-			timeOutDuration = time.Second
-		}
-		client.DialTimeout = timeOutDuration
 	}
+	timeOutDuration, err := time.ParseDuration(client.Timeout + "ms")
+	if nil != err {
+		log.DefaultLogger.Info("Using default timeout")
+		timeOutDuration = time.Second
+	}
+	client.DialTimeout = timeOutDuration
 	// Set IPC handler functions
 	client.setupKdbConnectionHandlers()
 	client.IsOpen = false
@@ -174,6 +172,10 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	// making signals channel (this should be done through ctx)
 	log.DefaultLogger.Info("Making signals channel")
 	client.signals = make(chan int)
+
+	// making raw read channel
+	log.DefaultLogger.Info("Making raw response channel")
+	client.rawReadChan = make(chan *kdbRawRead)
 
 	// Open the kdb Handle
 	err = client.OpenConnection()
@@ -224,9 +226,6 @@ func (d *KdbDatasource) openConnection() error {
 	log.DefaultLogger.Info(fmt.Sprintf("Dialled %s:%v successfully", d.Host, d.Port))
 	d.KdbHandle = conn
 	d.IsOpen = true
-	// making raw read channel
-	log.DefaultLogger.Info("Making raw response channel")
-	d.rawReadChan = make(chan *kdbRawRead)
 
 	// start synchronous handle reader
 	log.DefaultLogger.Info("Beginning handle listener")

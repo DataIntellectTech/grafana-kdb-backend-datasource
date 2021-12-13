@@ -9,6 +9,15 @@ import (
 	kdb "github.com/sv/kdbgo"
 )
 
+// wrappers for correct run-time evaluation of KdbHandle pointer and to enable unit testing
+func (d *KdbDatasource) writeMessage(msgtype kdb.ReqType, obj *kdb.K) error {
+	return d.KdbHandle.WriteMessage(msgtype, obj)
+}
+
+func (d *KdbDatasource) readMessage() (*kdb.K, kdb.ReqType, error) {
+	return d.KdbHandle.ReadMessage()
+}
+
 // support maximum queue of 100 000 per handle
 func (d *KdbDatasource) getKdbSyncQueryId() uint32 {
 	if d.kdbSyncQueryCounter > 100000 {
@@ -54,6 +63,7 @@ func (d *KdbDatasource) syncQueryRunner() {
 			}
 			// If handle is open, query the kdb+ process
 			var kdbQueryObj = &kdb.K{Type: kdb.KC, Attr: kdb.NONE, Data: query.query}
+			log.DefaultLogger.Info("Writing query to handle: " + query.query)
 			err = d.WriteConnection(kdb.SYNC, kdbQueryObj)
 			if err != nil {
 				log.DefaultLogger.Error("Error writing message", err.Error())
@@ -77,6 +87,7 @@ func (d *KdbDatasource) syncQueryRunner() {
 func (d *KdbDatasource) kdbHandleListener() {
 	kdbEOF := "Failed to read message header:"
 	for {
+		log.DefaultLogger.Info(fmt.Sprintf("DEV READING %v:%v...", d.Host, d.Port))
 		res, _, err := d.ReadConnection()
 		if err != nil {
 			log.DefaultLogger.Info(err.Error())
@@ -84,7 +95,6 @@ func (d *KdbDatasource) kdbHandleListener() {
 				log.DefaultLogger.Info("Handle read error, publishing error and returning from kdbHandleListener")
 				d.IsOpen = false
 				d.rawReadChan <- &kdbRawRead{result: res, err: err}
-				close(d.rawReadChan)
 				return
 			}
 		}

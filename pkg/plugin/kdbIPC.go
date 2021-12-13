@@ -10,6 +10,6 @@ func (d *KdbDatasource) setupKdbConnectionHandlers() {
 	d.RunKdbQuerySync = d.runKdbQuerySync
 	d.OpenConnection = d.openConnection
 	d.CloseConnection = d.closeConnection
-	d.WriteConnection = d.KdbHandle.WriteMessage
-	d.ReadConnection = d.KdbHandle.ReadMessage
+	d.WriteConnection = d.writeMessage
+	d.ReadConnection = d.readMessage
 }
