@@ -131,10 +131,11 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		}
 
 		if client.WithCACert {
-			_, keyOk := settings.DecryptedSecureJSONData["caCert"]
+			caCert, keyOk := settings.DecryptedSecureJSONData["caCert"]
 			if !keyOk {
 				log.DefaultLogger.Error("Error decrypting CA Cert or no CA Cert provided")
 			}
+			client.CaCert = caCert
 			log.DefaultLogger.Info("Setting custom CA certificate...")
 			tlsCaCert := x509.NewCertPool()
 			r := tlsCaCert.AppendCertsFromPEM([]byte(client.CaCert))
