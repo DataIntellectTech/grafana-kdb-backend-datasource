@@ -1,7 +1,7 @@
 import { DataSourceInstanceSettings } from '@grafana/data';
-import { DataSourceWithBackend, getBackendSrv } from '@grafana/runtime';
+import { DataSourceWithBackend, getBackendSrv, getTemplateSrv } from '@grafana/runtime';
 import {MyDataSourceOptions, MyQuery, MyVariableQuery} from './types';
-import { getTemplateSrv } from '@grafana/runtime';
+
 
 export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptions> {
   constructor(instanceSettings: DataSourceInstanceSettings<MyDataSourceOptions>) {
@@ -16,7 +16,7 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
 
   }
 
-  async metricFindQuery(query: MyVariableQuery, options?: any):Promise<any> {
+  async metricFindQuery(query: MyVariableQuery, options?: any): Promise<any> {
 
     let timeout = parseInt(query.timeOut, 10)
     const body: any = {
@@ -52,6 +52,4 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
 
 
   }
-
-
 }
