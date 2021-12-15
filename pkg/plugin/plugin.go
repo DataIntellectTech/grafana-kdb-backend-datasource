@@ -90,7 +90,7 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	client := KdbDatasource{}
 	err := json.Unmarshal(settings.JSONData, &client)
 	if err != nil {
-		log.DefaultLogger.Error("Error decoding Host and Port information", err.Error())
+		log.DefaultLogger.Error("Error decrypting Host and Port information", err.Error())
 		return nil, err
 	}
 
@@ -116,13 +116,13 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		log.DefaultLogger.Info("TLS enabled for new kdb datasource, creating tls config...")
 		tlsCertificate, certOk := settings.DecryptedSecureJSONData["tlsCertificate"]
 		if !certOk {
-			log.DefaultLogger.Info("Error decoding TLS Cert or no TLS Cert provided")
+			log.DefaultLogger.Info("Error decrypting TLS Cert or no TLS Cert provided")
 		}
 		client.TlsCertificate = tlsCertificate
 
 		tlsKey, keyOk := settings.DecryptedSecureJSONData["tlsKey"]
 		if !keyOk {
-			log.DefaultLogger.Error("Error decoding TLS Key or no TLS Key provided")
+			log.DefaultLogger.Error("Error decrypting TLS Key or no TLS Key provided")
 		}
 		client.TlsKey = tlsKey
 
@@ -131,15 +131,17 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		}
 
 		if client.WithCACert {
-			caCert, keyOk := settings.DecryptedSecureJSONData["caCert"]
+			_, keyOk := settings.DecryptedSecureJSONData["caCert"]
 			if !keyOk {
-				log.DefaultLogger.Error("Error decoding CA Cert or no CA Cert provided")
+				log.DefaultLogger.Error("Error decrypting CA Cert or no CA Cert provided")
 			}
-			client.CaCert = caCert
 			log.DefaultLogger.Info("Setting custom CA certificate...")
 			tlsCaCert := x509.NewCertPool()
-			tlsCaCert.AppendCertsFromPEM([]byte(client.CaCert))
-			tlsServerConfig.ClientCAs = tlsCaCert
+			r := tlsCaCert.AppendCertsFromPEM([]byte(client.CaCert))
+			if !r {
+				log.DefaultLogger.Info("Error parsing custom CA certificate")
+			}
+			tlsServerConfig.RootCAs = tlsCaCert
 		}
 
 		cert, err := tls.X509KeyPair([]byte(client.TlsCertificate), []byte(client.TlsKey))
