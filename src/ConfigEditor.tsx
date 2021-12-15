@@ -1,8 +1,9 @@
 import { defaults } from 'lodash';
 import React, { ChangeEvent, PureComponent } from 'react';
-import { LegacyForms} from '@grafana/ui';
+import {InlineField, LegacyForms} from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
 import {defaultConfig, MyDataSourceOptions, MySecureJsonData} from './types';
+import {TextArea }  from '@grafana/ui';
 // @ts-ignore
 import { version } from '../package.json';
 const { FormField, SecretFormField, Switch } = LegacyForms;
@@ -137,7 +138,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
     onOptionsChange({ ...options, jsonData });
   };
 
-  onTlsCertificateChange = (event: ChangeEvent<HTMLInputElement>) => {
+  onTlsCertificateChange = (event: any) => {
     const { onOptionsChange, options } = this.props;
     const { secureJsonData } = options;
     onOptionsChange({
@@ -164,7 +165,9 @@ export class ConfigEditor extends PureComponent<Props, State> {
     });
   };
 
-  onTlsKeyChange = (event: ChangeEvent<HTMLInputElement>) => {
+
+
+  onTlsKeyChange = (event: any) => {
     const { onOptionsChange, options } = this.props;
     const { secureJsonData } = options;
     onOptionsChange({
@@ -191,7 +194,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
       },
     });
   };
-  onCaCertChange = (event: ChangeEvent<HTMLInputElement>) => {
+  onCaCertChange = (event: any) => {
     const { onOptionsChange, options } = this.props;
     const { secureJsonData } = options;
     onOptionsChange({
@@ -227,10 +230,13 @@ export class ConfigEditor extends PureComponent<Props, State> {
     const { secureJsonFields } = options;
     const secureJsonData = (options.secureJsonData || {}) as MySecureJsonData;
 
+
+
     return (
         <>
           <div className="gf-form">
-            <SecretFormField
+
+            {secureJsonFields.tlsKey ? <SecretFormField
                 name="TLSKeyInputField"
                 isConfigured={(secureJsonFields && secureJsonFields.tlsKey) as boolean}
                 value={secureJsonData.tlsKey || ''}
@@ -240,23 +246,37 @@ export class ConfigEditor extends PureComponent<Props, State> {
                 inputWidth={20}
                 onReset={this.onTlsKeyReset}
                 onChange={this.onTlsKeyChange}
-            />
+            /> :             <InlineField label="TLS Key" labelWidth={14} grow={true}>
+              <TextArea css={{width: 3}}  style={{width: 320}} placeholder="TLS Key" value={secureJsonData.tlsKey || ''}  name="TLSKeyInputField" onChange={this.onTlsKeyChange}/>
+            </InlineField>}
           </div>
+
           <div className="gf-form">
-            <SecretFormField
-                name="TLSCertInputField"
-                isConfigured={(secureJsonFields && secureJsonFields.tlsCertificate) as boolean}
-                value={secureJsonData.tlsCertificate || ''}
-                label="TLS Certificate"
-                placeholder="TLS Certificate"
-                labelWidth={7}
-                inputWidth={20}
-                onReset={this.onTlsCertificateReset}
-                onChange={this.onTlsCertificateChange}
-            />
+            {secureJsonFields.tlsCertificate ?
+                <SecretFormField
+                    name="TLSCertInputField"
+                    isConfigured={(secureJsonFields && secureJsonFields.tlsCertificate) as boolean}
+                    value={secureJsonData.tlsCertificate || ''}
+                    label="TLS Certificate"
+                    placeholder="TLS Certificate"
+                    labelWidth={7}
+                    inputWidth={20}
+                    onReset={this.onTlsCertificateReset}
+                    onChange={this.onTlsCertificateChange}
+                /> :
+
+
+                <InlineField label="TLS Certificate" labelWidth={14} grow={true}>
+                  <TextArea css={{width: 3}} style={{width: 320}} placeholder="TLS Certificate"
+                            value={secureJsonData.tlsCertificate} name="TLSCertInputField"
+                            onChange={this.onTlsCertificateChange}/>
+                </InlineField>
+            }
+
           </div>
           {options.jsonData.withCACert &&
           <div className="gf-form">
+            {secureJsonFields.caCert ?
             <SecretFormField
                 name="TLSCAInputField"
                 isConfigured={(secureJsonFields && secureJsonFields.caCert) as boolean}
@@ -267,7 +287,10 @@ export class ConfigEditor extends PureComponent<Props, State> {
                 inputWidth={20}
                 onReset={this.onCaCertReset}
                 onChange={this.onCaCertChange}
-            />
+            />:
+                <InlineField label="CA Certificate" labelWidth={14} grow={true}>
+                  <TextArea css={{width: 3}}  style={{width: 320}} placeholder="CA Certificate" value={secureJsonData.caCert}  name="TLSCAInputField" onChange={this.onCaCertChange}/>
+                </InlineField>}
           </div>}
 
 

@@ -31,9 +31,9 @@ export const defaultConfig: Partial<MyDataSourceOptions> = {
 export interface MySecureJsonData {
   username: string;
   password: string;
-  tlsCertificate?:string;
-  tlsKey?:string;
-  caCert?:string;
+  tlsCertificate?: string;
+  tlsKey?: string;
+  caCert?: string;
 }
 
 export interface MyVariableQuery extends DataQuery{
