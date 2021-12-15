@@ -86,12 +86,11 @@ type KdbDatasource struct {
 
 // NewKdbDatasource creates a new datasource instance.
 func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-	log.DefaultLogger.Info(string(settings.JSONData))
 
 	client := KdbDatasource{}
 	err := json.Unmarshal(settings.JSONData, &client)
 	if err != nil {
-		log.DefaultLogger.Error("Error decoding Host and Port information", err.Error())
+		log.DefaultLogger.Error("Error decrypting Host and Port information", err.Error())
 		return nil, err
 	}
 
@@ -114,33 +113,36 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 
 	if client.WithTls {
 		tlsServerConfig := new(tls.Config)
-		log.DefaultLogger.Info("=========USING TLS==========")
+		log.DefaultLogger.Info("TLS enabled for new kdb datasource, creating tls config...")
 		tlsCertificate, certOk := settings.DecryptedSecureJSONData["tlsCertificate"]
 		if !certOk {
-			log.DefaultLogger.Info("Error decoding TLS Cert or no TLS Cert provided")
+			log.DefaultLogger.Info("Error decrypting TLS Cert or no TLS Cert provided")
 		}
 		client.TlsCertificate = tlsCertificate
 
 		tlsKey, keyOk := settings.DecryptedSecureJSONData["tlsKey"]
 		if !keyOk {
-			log.DefaultLogger.Error("Error decoding TLS Key or no TLS Key provided")
+			log.DefaultLogger.Error("Error decrypting TLS Key or no TLS Key provided")
 		}
 		client.TlsKey = tlsKey
 
 		if client.SkipVertifyTLS {
-			log.DefaultLogger.Info("-------HANDLE SKIP VERT-------")
+			log.DefaultLogger.Info("New kdb+ datasource config setup to skip TLS verification")
 		}
 
 		if client.WithCACert {
 			caCert, keyOk := settings.DecryptedSecureJSONData["caCert"]
 			if !keyOk {
-				log.DefaultLogger.Error("Error decoding CA Cert or no CA Cert provided")
+				log.DefaultLogger.Error("Error decrypting CA Cert or no CA Cert provided")
 			}
 			client.CaCert = caCert
-			log.DefaultLogger.Info("-------HANDLE CA CERT-------")
+			log.DefaultLogger.Info("Setting custom CA certificate...")
 			tlsCaCert := x509.NewCertPool()
-			tlsCaCert.AppendCertsFromPEM([]byte(client.CaCert))
-			tlsServerConfig.ClientCAs = tlsCaCert
+			r := tlsCaCert.AppendCertsFromPEM([]byte(client.CaCert))
+			if !r {
+				log.DefaultLogger.Info("Error parsing custom CA certificate")
+			}
+			tlsServerConfig.RootCAs = tlsCaCert
 		}
 
 		cert, err := tls.X509KeyPair([]byte(client.TlsCertificate), []byte(client.TlsKey))
@@ -151,15 +153,13 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		tlsServerConfig.Certificates = []tls.Certificate{cert}
 		tlsServerConfig.InsecureSkipVerify = client.SkipVertifyTLS
 		client.TlsServerConfig = tlsServerConfig
-	} else {
-		log.DefaultLogger.Info("=========No TLS==========")
-		timeOutDuration, err := time.ParseDuration(client.Timeout + "ms")
-		if nil != err {
-			log.DefaultLogger.Info("Using default timeout")
-			timeOutDuration = time.Second
-		}
-		client.DialTimeout = timeOutDuration
 	}
+	timeOutDuration, err := time.ParseDuration(client.Timeout + "ms")
+	if nil != err {
+		log.DefaultLogger.Info("Using default timeout")
+		timeOutDuration = time.Second
+	}
+	client.DialTimeout = timeOutDuration
 	// Set IPC handler functions
 	client.setupKdbConnectionHandlers()
 	client.IsOpen = false
@@ -175,6 +175,10 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	// making signals channel (this should be done through ctx)
 	log.DefaultLogger.Info("Making signals channel")
 	client.signals = make(chan int)
+
+	// making raw read channel
+	log.DefaultLogger.Info("Making raw response channel")
+	client.rawReadChan = make(chan *kdbRawRead)
 
 	// Open the kdb Handle
 	err = client.OpenConnection()
@@ -225,9 +229,6 @@ func (d *KdbDatasource) openConnection() error {
 	log.DefaultLogger.Info(fmt.Sprintf("Dialled %s:%v successfully", d.Host, d.Port))
 	d.KdbHandle = conn
 	d.IsOpen = true
-	// making raw read channel
-	log.DefaultLogger.Info("Making raw response channel")
-	d.rawReadChan = make(chan *kdbRawRead)
 
 	// start synchronous handle reader
 	log.DefaultLogger.Info("Beginning handle listener")
@@ -289,7 +290,6 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	if err != nil {
 		response.Error = err
 		return response
-
 	}
 
 	//table and dicts types here

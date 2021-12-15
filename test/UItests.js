@@ -1,13 +1,22 @@
-const {Builder, By, Key, until} = require('selenium-webdriver');
+const {Builder, By, until} = require('selenium-webdriver');
+
+const grafHost = "http://localhost:3000"
+const grafUser = "admin" 
+const grafPass = "nondefault"  // replace with your user/pass combo if testing on seperate system
+const kdbHost = "localhost"
+const kdbPort = "6767"
+const kdbUser = "user"
+const kdbPass = "pass"
+const kdbTimeout = "5000"
 
 async function startup() {
   return await new Builder().forBrowser('chrome').build();
 }
 
 async function Login(driver) {
-  await driver.get('http://localhost:3000/datasources/new');
-  await driver.findElement(By.name("user")).sendKeys("admin");
-  await driver.findElement(By.name("password")).sendKeys("nondefault");
+  await driver.get(grafHost+'/datasources/new');
+  await driver.findElement(By.name("user")).sendKeys(grafUser);
+  await driver.findElement(By.name("password")).sendKeys(grafPass);
   await driver.findElement(By.className("css-y3nv3e-button")).click();
 }
 
@@ -22,11 +31,11 @@ async function NavigateNewDatasource(driver) {
 
 async function TestNewDatasource(driver) {
   await driver.wait(until.elementLocated(By.name("HostInputField")))
-  await driver.findElement(By.name("HostInputField")).sendKeys("localhost")
-  await driver.findElement(By.name("PortInputField")).sendKeys("6767")
-  await driver.findElement(By.name("UsernameInputField")).sendKeys("user")
-  await driver.findElement(By.name("PasswordInputField")).sendKeys("pass")
-  await driver.findElement(By.name("TimeoutInputField")).sendKeys("5000")
+  await driver.findElement(By.name("HostInputField")).sendKeys(kdbHost)
+  await driver.findElement(By.name("PortInputField")).sendKeys(kdbPort)
+  await driver.findElement(By.name("UsernameInputField")).sendKeys(kdbUser)
+  await driver.findElement(By.name("PasswordInputField")).sendKeys(kdbPass)
+  await driver.findElement(By.name("TimeoutInputField")).sendKeys(kdbTimeout)
   await driver.findElement(By.className("btn btn-primary")).click()
   await driver.wait(until.elementLocated(By.className("alert-success alert")), 6000)
   var successAlerts = await driver.findElements(By.className("alert-success alert"))
