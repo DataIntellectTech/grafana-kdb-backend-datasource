@@ -299,9 +299,22 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 		kdbTable := kdbResponse.Data.(kdb.Table)
 		tabCols := kdbTable.Columns
 		tabData := kdbTable.Data
-
 		for colIndex, column := range tabCols {
-			frame.Fields = append(frame.Fields, data.NewField(column, nil, tabData[colIndex].Data))
+			//Manual handling of string cols
+			if tabData[colIndex].Type == kdb.K0 {
+				stringCol := tabData[colIndex].Data.([]*kdb.K)
+				stringArray := make([]string, len(stringCol))
+				for i := 0; i < len(stringCol); i++ {
+					if stringCol[i].Type != kdb.KC {
+						response.Error = fmt.Errorf("Error in string column conversion got type #{stringCol[i].Type}")
+						break
+					}
+					stringArray[i] = stringCol[i].Data.(string)
+				}
+				frame.Fields = append(frame.Fields, data.NewField(column, nil, stringArray))
+			} else {
+				frame.Fields = append(frame.Fields, data.NewField(column, nil, tabData[colIndex].Data))
+			}
 		}
 
 	default:
