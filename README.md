@@ -14,8 +14,8 @@ Below gives instructions for using the plugin
 
 1. Navigate to settings -> datasources
 2. Click add datasource and navigate to kdb-backend-datasource
-3. Enter the URL and Port of your KDB instance. A username and password must be entered for the KDB instance. <br /> Note: If your instance doesn't have a username or password, fill these fields with random text <br /> For example: username: Ausername, password: Apassword
-4. Enter a timeout value in ms, suggested is 350
+3. Enter the URL and Port, along with the username and password (if required - defaults to "") of your KDB instance.
+4. Enter a timeout value in ms, defaultis 1000ms
 5. Click save & test
 6. An alert at the bottom should display: "kdb connected succesfully"
 
@@ -24,10 +24,11 @@ Below gives instructions for using the plugin
 1. Navigate to create -> dashboard
 2. Create an empty panel
 3. Under the KDB Query field enter a valid KDB query </br> For example: ([] time:reverse .z.p-0D00:20*til 10;val:til 10)
-4. Click the refresh dashboard in the top right, above the Panel
-5. The data should be displayed on the panel
-6. Click save and return to your dashboard
-7. The refresh rate can be set from your dashboard, click refresh, select the drop down menu and set your refresh time.
+4. Optional Timeout can be entered - default is 10,000 ms
+5. Click the refresh dashboard in the top right, above the Panel
+6. The data should be displayed on the panel
+7. Click save and return to your dashboard
+8. The refresh rate can be set from your dashboard, click refresh, select the drop down menu and set your refresh time.
 
 
 ## Getting started for developers
