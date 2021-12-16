@@ -299,9 +299,22 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 		kdbTable := kdbResponse.Data.(kdb.Table)
 		tabCols := kdbTable.Columns
 		tabData := kdbTable.Data
-
 		for colIndex, column := range tabCols {
-			frame.Fields = append(frame.Fields, data.NewField(column, nil, tabData[colIndex].Data))
+			//Manual handling of string cols
+			if tabData[colIndex].Type == kdb.K0 {
+				stringCol := tabData[colIndex].Data.([]*kdb.K)
+				stringArray := make([]string, len(stringCol))
+				for i, word := range stringCol {
+					if word.Type != kdb.KC {
+						response.Error = fmt.Errorf("Non-vector column present: %v. Type: %v", column, word.Type)
+						break
+					}
+					stringArray[i] = word.Data.(string)
+				}
+				frame.Fields = append(frame.Fields, data.NewField(column, nil, stringArray))
+			} else {
+				frame.Fields = append(frame.Fields, data.NewField(column, nil, tabData[colIndex].Data))
+			}
 		}
 
 	default:
