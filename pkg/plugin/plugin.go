@@ -304,12 +304,12 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 			if tabData[colIndex].Type == kdb.K0 {
 				stringCol := tabData[colIndex].Data.([]*kdb.K)
 				stringArray := make([]string, len(stringCol))
-				for i := 0; i < len(stringCol); i++ {
-					if stringCol[i].Type != kdb.KC {
-						response.Error = fmt.Errorf("Error in string column conversion got type #{stringCol[i].Type}")
+				for i, word := range stringCol {
+					if word.Type != kdb.KC {
+						response.Error = fmt.Errorf("Non-vector column present: %v. Type: %v", column, word.Type)
 						break
 					}
-					stringArray[i] = stringCol[i].Data.(string)
+					stringArray[i] = word.Data.(string)
 				}
 				frame.Fields = append(frame.Fields, data.NewField(column, nil, stringArray))
 			} else {
