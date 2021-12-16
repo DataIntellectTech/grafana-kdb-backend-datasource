@@ -12,7 +12,6 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
-	"github.com/grafana/grafana-plugin-sdk-go/data"
 	kdb "github.com/sv/kdbgo"
 )
 
@@ -292,76 +291,25 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 		return response
 	}
 
-	//table and dicts types here
-
+	// Parse supported structures
 	switch {
 	case kdbResponse.Type == kdb.XT:
-		frame := data.NewFrame("response")
-		kdbTable := kdbResponse.Data.(kdb.Table)
-		tabCols := kdbTable.Columns
-		tabData := kdbTable.Data
-		for colIndex, column := range tabCols {
-			//Manual handling of string cols
-			if tabData[colIndex].Type == kdb.K0 {
-				stringCol := tabData[colIndex].Data.([]*kdb.K)
-				stringArray := make([]string, len(stringCol))
-				for i, word := range stringCol {
-					if word.Type != kdb.KC {
-						response.Error = fmt.Errorf("Non-vector column present: %v. Type: %v", column, word.Type)
-						break
-					}
-					stringArray[i] = word.Data.(string)
-				}
-				frame.Fields = append(frame.Fields, data.NewField(column, nil, stringArray))
-			} else {
-				frame.Fields = append(frame.Fields, data.NewField(column, nil, tabData[colIndex].Data))
-			}
-		}
-		response.Frames = append(response.Frames, frame)
-	case kdbResponse.Type == kdb.XD:
-
-		kdbDict := kdbResponse.Data.(kdb.Dict)
-		kdbKeys := kdbDict.Key.Data.(kdb.Table)
-
-		log.DefaultLogger.Info("KEYS BELOW")
-		var seriesName []string
-		colLen := kdbKeys.Data[0].Len()
-		for i := 0; i < colLen; i++ {
-			series := ""
-			for _, colData := range kdbKeys.Data {
-				log.DefaultLogger.Info("==LINE 319==")
-				series = series + fmt.Sprintf("%v", colData.Index(i))
-				log.DefaultLogger.Info("==LINE 321==")
-			}
-			seriesName = append(seriesName, series)
-		}
-
-		objB := kdbDict.Value.Data.(kdb.Table)
-		log.DefaultLogger.Info("__LINE 327__")
-		log.DefaultLogger.Info(fmt.Sprintf("%v", kdbDict.Value.Type))
-		x := objB.Data[0].Len()
-		//i = rowcount
-		for i := 0; i < x; i++ {
-			frame := data.NewFrame(seriesName[i])
-			//index = col count
-			for index, colName := range objB.Columns {
-				log.DefaultLogger.Info("__LINE 333__")
-				log.DefaultLogger.Info(fmt.Sprintf("%v", objB.Data[index].Type))
-				frame.Fields = append(frame.Fields, data.NewField(colName, nil, objB.Data[index].Index(i)))
-				log.DefaultLogger.Info("__LINE 335__")
-			}
+		frame, err := ParseSimpleKdbTable(kdbResponse)
+		if err != nil {
+			response.Error = err
+		} else {
 			response.Frames = append(response.Frames, frame)
 		}
-
-		e := "returned value of unexpected type, need table"
-		log.DefaultLogger.Error(e)
-
+	case kdbResponse.Type == kdb.XD:
+		frames, err := ParseGroupedKdbTable(kdbResponse)
+		if err != nil {
+			response.Error = err
+		} else {
+			response.Frames = append(response.Frames, frames...)
+		}
 	default:
-		e := "returned value of unexpected type, need table"
-		log.DefaultLogger.Error(e)
-
+		response.Error = fmt.Errorf("Returned object of unsupported type, only tables supported")
 	}
-
 	return response
 }
 
