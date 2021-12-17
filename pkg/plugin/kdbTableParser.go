@@ -2,7 +2,6 @@ package plugin
 
 import (
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
@@ -50,9 +49,6 @@ func ParseGroupedKdbTable(res *kdb.K) ([]*data.Frame, error) {
 		rowData := valData.Index(i) // I think this index call is what's causing variable nesting levels later on
 		log.DefaultLogger.Info("A")
 		for i, colName := range rowData.Key.Data.([]string) {
-			log.DefaultLogger.Info(fmt.Sprintf("VALUES OUTER: %v", rowData.Value.Data.([]*kdb.K)[i].Data))
-			log.DefaultLogger.Info(fmt.Sprintf("TYPES OUTER: %v", rowData.Value.Data.([]*kdb.K)[i].Type))
-			log.DefaultLogger.Info(fmt.Sprintf("REFLECTED TYPE OF OUTER DATA: %v", reflect.TypeOf(rowData.Value.Data.([]*kdb.K)[i].Data)))
 			// Looks like there is a bug with one of the transformations:
 			// If the column is a flat type then the data is nested correctly, but atomic (so needs to be enlisted) - this is fine
 			// If the column is nested however, then although the returned type of "rowData.Value.Data.([]*kdb.K)[i].Type" is non-zero, the
@@ -60,10 +56,7 @@ func ParseGroupedKdbTable(res *kdb.K) ([]*data.Frame, error) {
 			// below section is to account for this. This is probably due to a bug in the Indexing function, so this should be changed
 			var dat interface{}
 			if rowData.Value.Data.([]*kdb.K)[i].Type < 0 {
-				log.DefaultLogger.Info("ENTERED ENLISTER")
 				dat = enlistAtom(rowData.Value.Data.([]*kdb.K)[i].Data)
-				log.DefaultLogger.Info(fmt.Sprintf("ADDING FOLLOWING AS FIELD: %v", dat))
-				log.DefaultLogger.Info(fmt.Sprintf("FIELD OF FOLLOWING TYPE: %v", reflect.TypeOf(dat)))
 			} else {
 				dat = rowData.Value.Data.([]*kdb.K)[i].Data.(*kdb.K).Data
 			}
