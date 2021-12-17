@@ -267,12 +267,12 @@ func (d *KdbDatasource) QueryData(ctx context.Context, req *backend.QueryDataReq
 
 func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	var MyQuery QueryModel
+	response := backend.DataResponse{}
 	err := json.Unmarshal(query.JSON, &MyQuery)
 	if err != nil {
 		log.DefaultLogger.Error("Error decoding query and field -%s", err.Error())
 
 	}
-	response := backend.DataResponse{}
 
 	if err != nil {
 		log.DefaultLogger.Info(err.Error())
@@ -291,7 +291,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 		return response
 	}
 
-	// Parse supported structures
+	// Parse response data
 	switch {
 	case kdbResponse.Type == kdb.XT:
 		frame, err := ParseSimpleKdbTable(kdbResponse)
