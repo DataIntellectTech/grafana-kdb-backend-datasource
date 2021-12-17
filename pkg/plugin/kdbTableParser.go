@@ -9,6 +9,29 @@ import (
 	kdb "github.com/sv/kdbgo"
 )
 
+func charParser(data *kdb.K) []string {
+	byteArray := make([]string, data.Len())
+	for i := 0; i < data.Len(); i++ {
+		byteArray[i] = string(data.Index(i).(byte))
+	}
+	return byteArray
+}
+
+func stringParser(data *kdb.K) ([]string, error) {
+	log.DefaultLogger.Info("Type is K0")
+	stringCol := data.Data.([]*kdb.K)
+	stringArray := make([]string, len(stringCol))
+	for i, word := range stringCol {
+		if word.Type != kdb.KC {
+			return nil, fmt.Errorf("A column is present which is neither a vector nor a string column. kdb+ type at index %v: %v", i, word.Type)
+		}
+		stringArray[i] = word.Data.(string)
+	}
+
+	return stringArray, nil
+
+}
+
 func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 	frame := data.NewFrame("response")
 	kdbTable := res.Data.(kdb.Table)
@@ -16,19 +39,19 @@ func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 
 	for colIndex, columnName := range kdbTable.Columns {
 		//Manual handling of string cols
-		if tabData[colIndex].Type == kdb.K0 {
-			stringCol := tabData[colIndex].Data.([]*kdb.K)
-			stringArray := make([]string, len(stringCol))
-			for i, word := range stringCol {
-				if word.Type != kdb.KC {
-					return nil, fmt.Errorf("A column is present which is neither a vector nor a string column: %v. kdb+ type at index %v: %v", columnName, i, word.Type)
-				}
-				stringArray[i] = word.Data.(string)
+		switch {
+		case tabData[colIndex].Type == kdb.K0:
+			stringColumn, err := stringParser(tabData[colIndex])
+			if err != nil {
+				return nil, fmt.Errorf("The following column: %v return this error: %v", columnName, err)
 			}
-			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, stringArray))
-		} else {
+			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, stringColumn))
+		case tabData[colIndex].Type == kdb.KC:
+			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, charParser(tabData[colIndex])))
+		default:
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, tabData[colIndex].Data))
 		}
+
 	}
 	return frame, nil
 }
