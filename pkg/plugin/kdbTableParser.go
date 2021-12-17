@@ -81,7 +81,18 @@ func ParseGroupedKdbTable(res *kdb.K) ([]*data.Frame, error) {
 			if rowData.Value.Data.([]*kdb.K)[i].Type < 0 {
 				dat = enlistAtom(rowData.Value.Data.([]*kdb.K)[i].Data)
 			} else {
-				dat = rowData.Value.Data.([]*kdb.K)[i].Data.(*kdb.K).Data
+				switch {
+				case rowData.Value.Data.([]*kdb.K)[i].Data.(*kdb.K).Type == kdb.K0:
+					stringColumn, err := stringParser(rowData.Value.Data.([]*kdb.K)[i].Data.(*kdb.K))
+					if err != nil {
+						return nil, fmt.Errorf("Error parsing data of type K0")
+					}
+					dat = stringColumn
+				case rowData.Value.Data.([]*kdb.K)[i].Data.(*kdb.K).Type == kdb.KC:
+					dat = charParser(rowData.Value.Data.([]*kdb.K)[i].Data.(*kdb.K))
+				default:
+					dat = rowData.Value.Data.([]*kdb.K)[i].Data.(*kdb.K).Data
+				}
 			}
 			frame.Fields = append(frame.Fields, data.NewField(colName, nil, dat))
 		}
