@@ -36,7 +36,7 @@ type QueryModel struct {
 }
 
 type kdbSyncQuery struct {
-	query   string
+	query   *kdb.K
 	id      uint32
 	timeout time.Duration
 }
@@ -76,7 +76,7 @@ type KdbDatasource struct {
 	kdbSyncQueryCounter uint32
 	IsOpen              bool
 	KdbHandleListener   func()
-	RunKdbQuerySync     func(string, time.Duration) (*kdb.K, error)
+	RunKdbQuerySync     func(*kdb.K, time.Duration) (*kdb.K, error)
 	OpenConnection      func() error
 	CloseConnection     func() error
 	WriteConnection     func(kdb.ReqType, *kdb.K) error
@@ -271,21 +271,39 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	err := json.Unmarshal(query.JSON, &MyQuery)
 	if err != nil {
 		log.DefaultLogger.Error("Error decoding query and field -%s", err.Error())
-
-	}
-
-	if err != nil {
-		log.DefaultLogger.Info(err.Error())
 		response.Error = err
 		return response
 	}
-
 	if MyQuery.Timeout < 1 {
 		MyQuery.Timeout = 10000
 	}
-	log.DefaultLogger.Info(strconv.Itoa(MyQuery.Timeout))
+	timeout := time.Duration(MyQuery.Timeout) * time.Millisecond
 
-	kdbResponse, err := d.RunKdbQuerySync(MyQuery.QueryText, time.Duration(MyQuery.Timeout)*time.Millisecond)
+	userKeys := kdb.SymbolV([]string{"UserName", "UserEmail", "UserLogin", "UserRole"})
+	userValues := kdb.NewList(
+		kdb.Atom(kdb.KC, pCtx.User.Name),
+		kdb.Atom(kdb.KC, pCtx.User.Email),
+		kdb.Atom(kdb.KC, pCtx.User.Login),
+		kdb.Atom(kdb.KC, pCtx.User.Role))
+	datasourceKeys := kdb.SymbolV([]string{"ID", "Name", "UID", "URL", "Updated", "User"})
+	datasourceValues := kdb.NewList(
+		kdb.Long(pCtx.DataSourceInstanceSettings.ID),
+		kdb.Atom(kdb.KC, pCtx.DataSourceInstanceSettings.Name),
+		kdb.Atom(kdb.KC, pCtx.DataSourceInstanceSettings.UID),
+		kdb.Atom(kdb.KC, pCtx.DataSourceInstanceSettings.URL),
+		kdb.Atom(-kdb.KP, pCtx.DataSourceInstanceSettings.Updated),
+		kdb.Atom(kdb.KC, pCtx.DataSourceInstanceSettings.User))
+	masterKeys := kdb.SymbolV([]string{"AQUAQ_KDB_BACKEND_GRAF_DATASOURCE", "Time", "OrgID", "Datasource", "User", "Query", "Timeout"})
+	masterValues := kdb.NewList(
+		kdb.Float(float64(1.0)),
+		kdb.Atom(-kdb.KP, time.Now()),
+		kdb.Long(pCtx.OrgID),
+		kdb.NewDict(datasourceKeys, datasourceValues),
+		kdb.NewDict(userKeys, userValues),
+		kdb.Atom(kdb.KC, MyQuery.QueryText),
+		kdb.Atom(-kdb.KN, timeout))
+
+	kdbResponse, err := d.RunKdbQuerySync(kdb.NewList(kdb.Atom(kdb.KC, "{[x] value x[`Query]}"), kdb.NewDict(masterKeys, masterValues)), timeout)
 	if err != nil {
 		response.Error = err
 		return response
@@ -320,7 +338,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 func (d *KdbDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	log.DefaultLogger.Info("CheckHealth called", "request", req)
 
-	test, err := d.RunKdbQuerySync("1+1", time.Duration(d.DialTimeout)*time.Millisecond)
+	test, err := d.RunKdbQuerySync(kdb.Atom(kdb.KC, "1+1"), time.Duration(d.DialTimeout)*time.Millisecond)
 	if err != nil {
 		log.DefaultLogger.Error("CheckHealth error: %v", err)
 		return &backend.CheckHealthResult{Status: backend.HealthStatusError, Message: fmt.Sprintf("Error querying kdb+ process: %v", err)}, nil

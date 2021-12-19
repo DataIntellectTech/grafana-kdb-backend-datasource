@@ -27,7 +27,7 @@ func (d *KdbDatasource) getKdbSyncQueryId() uint32 {
 	return d.kdbSyncQueryCounter
 }
 
-func (d *KdbDatasource) runKdbQuerySync(query string, timeout time.Duration) (*kdb.K, error) {
+func (d *KdbDatasource) runKdbQuerySync(query *kdb.K, timeout time.Duration) (*kdb.K, error) {
 	queryObj := &kdbSyncQuery{query: query, id: d.getKdbSyncQueryId(), timeout: timeout}
 	d.syncQueue <- queryObj
 	for {
@@ -62,9 +62,7 @@ func (d *KdbDatasource) syncQueryRunner() {
 				}
 			}
 			// If handle is open, query the kdb+ process
-			var kdbQueryObj = &kdb.K{Type: kdb.KC, Attr: kdb.NONE, Data: query.query}
-			log.DefaultLogger.Info("Writing query to handle: " + query.query)
-			err = d.WriteConnection(kdb.SYNC, kdbQueryObj)
+			err = d.WriteConnection(kdb.SYNC, query.query)
 			if err != nil {
 				log.DefaultLogger.Error("Error writing message", err.Error())
 				d.syncResChan <- &kdbSyncRes{result: nil, err: err, id: query.id}
@@ -73,10 +71,8 @@ func (d *KdbDatasource) syncQueryRunner() {
 
 			select {
 			case msg := <-d.rawReadChan:
-				log.DefaultLogger.Info("RECEIVED RESULT, RET2")
 				d.syncResChan <- &kdbSyncRes{result: msg.result, err: msg.err, id: query.id}
 			case <-time.After(query.timeout):
-				log.DefaultLogger.Info("QUERY TIMEOUT, RET3")
 				d.syncResChan <- &kdbSyncRes{result: nil, err: fmt.Errorf("Queried timed out after %v", query.timeout), id: query.id}
 				d.CloseConnection()
 			}
@@ -87,7 +83,6 @@ func (d *KdbDatasource) syncQueryRunner() {
 func (d *KdbDatasource) kdbHandleListener() {
 	kdbEOF := "Failed to read message header:"
 	for {
-		log.DefaultLogger.Info(fmt.Sprintf("DEV READING %v:%v...", d.Host, d.Port))
 		res, _, err := d.ReadConnection()
 		if err != nil {
 			log.DefaultLogger.Info(err.Error())
