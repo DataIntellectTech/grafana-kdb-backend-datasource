@@ -1,5 +1,5 @@
 import { defaults } from 'lodash';
-import React, { ChangeEvent, PureComponent } from 'react';
+import React, { ChangeEvent, PureComponent, SyntheticEvent, FormEvent } from 'react';
 import {InlineField, LegacyForms} from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
 import {defaultConfig, MyDataSourceOptions, MySecureJsonData} from './types';
@@ -105,7 +105,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
     });
   };
 
-  onTlsToggle = () => {
+  onTlsToggle = (e: SyntheticEvent) => {
 
     const { onOptionsChange, options } = this.props;
     const jsonData = {
@@ -116,7 +116,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
     onOptionsChange({ ...options, jsonData });
   };
 
-  onSkipTlsToggle = () => {
+  onSkipTlsToggle = (e: SyntheticEvent) => {
 
     const { onOptionsChange, options } = this.props;
     const jsonData = {
@@ -127,7 +127,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
     onOptionsChange({ ...options, jsonData });
   };
 
-  onCaCertToggle = () => {
+  onCaCertToggle = (e: SyntheticEvent) => {
 
     const { onOptionsChange, options } = this.props;
     const jsonData = {
@@ -138,14 +138,14 @@ export class ConfigEditor extends PureComponent<Props, State> {
     onOptionsChange({ ...options, jsonData });
   };
 
-  onTlsCertificateChange = (event: any) => {
+  onTlsCertificateChange = (event: FormEvent<HTMLTextAreaElement>) => {
     const { onOptionsChange, options } = this.props;
     const { secureJsonData } = options;
     onOptionsChange({
       ...options,
       secureJsonData: {
         ...secureJsonData,
-        tlsCertificate: event.target.value,
+        tlsCertificate: event.currentTarget.value,
       },
     });
   };
@@ -167,14 +167,14 @@ export class ConfigEditor extends PureComponent<Props, State> {
 
 
 
-  onTlsKeyChange = (event: any) => {
+  onTlsKeyChange = (event: FormEvent<HTMLTextAreaElement>) => {
     const { onOptionsChange, options } = this.props;
     const { secureJsonData } = options;
     onOptionsChange({
       ...options,
       secureJsonData: {
         ...secureJsonData,
-        tlsKey: event.target.value,
+        tlsKey: event.currentTarget.value,
       },
     });
   };
@@ -194,14 +194,14 @@ export class ConfigEditor extends PureComponent<Props, State> {
       },
     });
   };
-  onCaCertChange = (event: any) => {
+  onCaCertChange = (event: FormEvent<HTMLTextAreaElement>) => {
     const { onOptionsChange, options } = this.props;
     const { secureJsonData } = options;
     onOptionsChange({
       ...options,
       secureJsonData: {
         ...secureJsonData,
-        caCert: event.target.value,
+        caCert: event.currentTarget.value,
       },
     });
   };
@@ -230,12 +230,9 @@ export class ConfigEditor extends PureComponent<Props, State> {
     const { secureJsonFields } = options;
     const secureJsonData = (options.secureJsonData || {}) as MySecureJsonData;
 
-
-
     return (
         <>
           <div className="gf-form">
-
             {secureJsonFields.tlsKey ? <SecretFormField
                 name="TLSKeyInputField"
                 isConfigured={(secureJsonFields && secureJsonFields.tlsKey) as boolean}
@@ -245,9 +242,15 @@ export class ConfigEditor extends PureComponent<Props, State> {
                 labelWidth={7}
                 inputWidth={20}
                 onReset={this.onTlsKeyReset}
-                onChange={this.onTlsKeyChange}
-            /> :             <InlineField label="TLS Key" labelWidth={14} grow={true}>
-              <TextArea css={{width: 3}}  style={{width: 320}} placeholder="TLS Key" value={secureJsonData.tlsKey || ''}  name="TLSKeyInputField" onChange={this.onTlsKeyChange}/>
+                //onChange={this.onTlsKeyChange}
+            /> :
+            <InlineField label="TLS Key" labelWidth={14} grow={true}>
+              <TextArea
+                style={{width: 320}}
+                placeholder="TLS Key"
+                value={secureJsonData.tlsKey || ''} 
+                name="TLSKeyInputField"
+                onChange={this.onTlsKeyChange}/>
             </InlineField>}
           </div>
 
@@ -262,22 +265,22 @@ export class ConfigEditor extends PureComponent<Props, State> {
                     labelWidth={7}
                     inputWidth={20}
                     onReset={this.onTlsCertificateReset}
-                    onChange={this.onTlsCertificateChange}
+                    //onChange={this.onTlsCertificateChange}
                 /> :
-
-
                 <InlineField label="TLS Certificate" labelWidth={14} grow={true}>
-                  <TextArea css={{width: 3}} style={{width: 320}} placeholder="TLS Certificate"
-                            value={secureJsonData.tlsCertificate} name="TLSCertInputField"
-                            onChange={this.onTlsCertificateChange}/>
+                  <TextArea
+                    style={{width: 320}}
+                    placeholder="TLS Certificate"
+                    value={secureJsonData.tlsCertificate}
+                    name="TLSCertInputField"
+                    onChange={this.onTlsCertificateChange}/>
                 </InlineField>
             }
-
           </div>
           {options.jsonData.withCACert &&
           <div className="gf-form">
             {secureJsonFields.caCert ?
-            <SecretFormField
+              <SecretFormField
                 name="TLSCAInputField"
                 isConfigured={(secureJsonFields && secureJsonFields.caCert) as boolean}
                 value={secureJsonData.caCert || ''}
@@ -286,14 +289,17 @@ export class ConfigEditor extends PureComponent<Props, State> {
                 labelWidth={7}
                 inputWidth={20}
                 onReset={this.onCaCertReset}
-                onChange={this.onCaCertChange}
+                //onChange={this.onCaCertChange}
             />:
-                <InlineField label="CA Certificate" labelWidth={14} grow={true}>
-                  <TextArea css={{width: 3}}  style={{width: 320}} placeholder="CA Certificate" value={secureJsonData.caCert}  name="TLSCAInputField" onChange={this.onCaCertChange}/>
-                </InlineField>}
+              <InlineField label="CA Certificate" labelWidth={14} grow={true}>
+                <TextArea
+                  style={{width: 320}}
+                  placeholder="CA Certificate"
+                  value={secureJsonData.caCert}
+                  name="TLSCAInputField"
+                  onChange={this.onCaCertChange}/>
+              </InlineField>}
           </div>}
-
-
         </>
     )
   }

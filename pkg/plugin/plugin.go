@@ -23,8 +23,11 @@ var (
 )
 
 type QueryModel struct {
-	QueryText string `json:"queryText"`
-	Timeout   int    `json:"timeOut"`
+	QueryText         string `json:"queryText"`
+	Timeout           int    `json:"timeOut"`
+	useTimeColumn     bool   `json:useTimeColumn`
+	timeColumn        string `json:timeColumn`
+	includeKeyColumns bool   `json:includeKeyColumns`
 }
 
 type kdbSyncQuery struct {
