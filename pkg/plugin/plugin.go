@@ -6,24 +6,17 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
+	"github.com/grafana/grafana-plugin-sdk-go/data"
 	kdb "github.com/sv/kdbgo"
 )
 
-// Make sure SampleDatasource implements required interfaces. This is important to do
-// since otherwise we will only get a not implemented error response from plugin in
-// runtime. In this example datasource instance implements backend.QueryDataHandler,
-// backend.CheckHealthHandler, backend.StreamHandler interfaces. Plugin should not
-// implement all these interfaces - only those which are required for a particular task.
-// For example if plugin does not need streaming functionality then you are free to remove
-// methods that implement backend.StreamHandler. Implementing instancemgmt.InstanceDisposer
-// is useful to clean up resources used by previous datasource instance when a new datasource
-// instance created upon datasource settings changed.
+const ADAPTOR_VERSION = float64(1.0)
+
 var (
 	_ backend.QueryDataHandler      = (*KdbDatasource)(nil)
 	_ backend.CheckHealthHandler    = (*KdbDatasource)(nil)
@@ -31,12 +24,15 @@ var (
 )
 
 type QueryModel struct {
-	QueryText string `json:"queryText"`
-	Timeout   int    `json:"timeOut"`
+	QueryText         string `json:"queryText"`
+	Timeout           int    `json:"timeOut"`
+	UseTimeColumn     bool   `json:"useTimeColumn"`
+	TimeColumn        string `json:"timeColumn"`
+	IncludeKeyColumns bool   `json:"includeKeyColumns"`
 }
 
 type kdbSyncQuery struct {
-	query   string
+	query   *kdb.K
 	id      uint32
 	timeout time.Duration
 }
@@ -53,9 +49,7 @@ type kdbSyncRes struct {
 }
 
 type KdbDatasource struct {
-	// Host for kdb connection
-	Host string `json:"host"`
-	// port for kdb connection
+	Host                string `json:"host"`
 	Port                int    `json:"port"`
 	Timeout             string `json:"timeout"`
 	WithTls             bool   `json:"withTLS"`
@@ -76,7 +70,7 @@ type KdbDatasource struct {
 	kdbSyncQueryCounter uint32
 	IsOpen              bool
 	KdbHandleListener   func()
-	RunKdbQuerySync     func(string, time.Duration) (*kdb.K, error)
+	RunKdbQuerySync     func(*kdb.K, time.Duration) (*kdb.K, error)
 	OpenConnection      func() error
 	CloseConnection     func() error
 	WriteConnection     func(kdb.ReqType, *kdb.K) error
@@ -192,9 +186,6 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	return &client, nil
 }
 
-// Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
-// created. As soon as datasource settings change detected by SDK old datasource instance will
-// be disposed and a new one will be created using NewKdbDatasource factory function.
 func (d *KdbDatasource) Dispose() {
 	log.DefaultLogger.Info("Dispose called")
 	if d.IsOpen {
@@ -245,18 +236,47 @@ func (d *KdbDatasource) closeConnection() error {
 	return err
 }
 
-// QueryData handles multiple queries and returns multiple responses.
-// req contains the queries []DataQuery (where each query contains RefID as a unique identifier).
-// The QueryDataResponse contains a map of RefID to the response for each query, and each response
-// contains Frames ([]*Frame).
+func buildDatasourceKdbDict(settings *backend.DataSourceInstanceSettings) *kdb.K {
+	datasourceKeys := kdb.SymbolV([]string{"ID", "Name", "UID", "URL", "Updated", "User"})
+	datasourceValues := kdb.NewList(
+		kdb.Long(settings.ID),
+		kdb.Atom(kdb.KC, settings.Name),
+		kdb.Atom(kdb.KC, settings.UID),
+		kdb.Atom(kdb.KC, settings.URL),
+		kdb.Atom(-kdb.KP, settings.Updated),
+		kdb.Atom(kdb.KC, settings.User))
+	return kdb.NewDict(datasourceKeys, datasourceValues)
+}
+
+func buildUserKdbDict(settings *backend.User) *kdb.K {
+	userKeys := kdb.SymbolV([]string{"UserName", "UserEmail", "UserLogin", "UserRole"})
+	userValues := kdb.NewList(
+		kdb.Atom(kdb.KC, settings.Name),
+		kdb.Atom(kdb.KC, settings.Email),
+		kdb.Atom(kdb.KC, settings.Login),
+		kdb.Atom(kdb.KC, settings.Role))
+	return kdb.NewDict(userKeys, userValues)
+}
+
+func buildQueryKdbDict(q backend.DataQuery, qText string) *kdb.K {
+	queryKeys := kdb.SymbolV([]string{"RefID", "Query", "QueryType", "MaxDataPoints", "Interval", "TimeRange"})
+	queryValues := kdb.NewList(
+		kdb.Atom(kdb.KC, q.RefID),
+		kdb.Atom(kdb.KC, qText),
+		kdb.Symbol("QUERY"),
+		kdb.Long(q.MaxDataPoints),
+		kdb.Long(int64(q.Interval)),
+		kdb.Atom(kdb.KP, []time.Time{q.TimeRange.From, q.TimeRange.To}))
+	return kdb.NewDict(queryKeys, queryValues)
+}
+
 func (d *KdbDatasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
 	// create response struct
 	response := backend.NewQueryDataResponse()
 
 	// loop over queries and execute them individually.
-	for i, q := range req.Queries {
+	for _, q := range req.Queries {
 		res := d.query(ctx, req.PluginContext, q)
-		log.DefaultLogger.Info(strconv.Itoa(i))
 		// save the response in a hashmap
 		// based on with RefID as identifier
 		response.Responses[q.RefID] = res
@@ -271,21 +291,27 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	err := json.Unmarshal(query.JSON, &MyQuery)
 	if err != nil {
 		log.DefaultLogger.Error("Error decoding query and field -%s", err.Error())
-
-	}
-
-	if err != nil {
-		log.DefaultLogger.Info(err.Error())
 		response.Error = err
 		return response
 	}
-
 	if MyQuery.Timeout < 1 {
 		MyQuery.Timeout = 10000
 	}
-	log.DefaultLogger.Info(strconv.Itoa(MyQuery.Timeout))
 
-	kdbResponse, err := d.RunKdbQuerySync(MyQuery.QueryText, time.Duration(MyQuery.Timeout)*time.Millisecond)
+	userDict := buildUserKdbDict(pCtx.User)
+	datasourceDict := buildDatasourceKdbDict(pCtx.DataSourceInstanceSettings)
+	queryDict := buildQueryKdbDict(query, MyQuery.QueryText)
+	masterKeys := kdb.SymbolV([]string{"AQUAQ_KDB_BACKEND_GRAF_DATASOURCE", "Time", "OrgID", "Datasource", "User", "Query", "Timeout"})
+	masterValues := kdb.NewList(
+		kdb.Float(ADAPTOR_VERSION),
+		kdb.Atom(-kdb.KP, time.Now()),
+		kdb.Long(pCtx.OrgID),
+		datasourceDict,
+		userDict,
+		queryDict,
+		kdb.Long(int64(MyQuery.Timeout)))
+
+	kdbResponse, err := d.RunKdbQuerySync(kdb.NewList(kdb.Atom(kdb.KC, "{[x] value x[`Query;`Query]}"), kdb.NewDict(masterKeys, masterValues)), time.Duration(MyQuery.Timeout)*time.Millisecond)
 	if err != nil {
 		response.Error = err
 		return response
@@ -301,7 +327,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 			response.Frames = append(response.Frames, frame)
 		}
 	case kdbResponse.Type == kdb.XD:
-		frames, err := ParseGroupedKdbTable(kdbResponse)
+		frames, err := ParseGroupedKdbTable(kdbResponse, MyQuery.IncludeKeyColumns)
 		if err != nil {
 			response.Error = err
 		} else {
@@ -310,17 +336,44 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	default:
 		response.Error = fmt.Errorf("Returned object of unsupported type, only tables supported")
 	}
+
+	// Handle temporal column override
+	if MyQuery.UseTimeColumn {
+		for _, frame := range response.Frames {
+			timeOverrideIndex := -1
+			for v, field := range frame.Fields {
+				if field.Name == MyQuery.TimeColumn {
+					timeOverrideIndex = v
+					break
+				}
+			}
+			if timeOverrideIndex == -1 {
+				response.Error = fmt.Errorf("Temporal column override '%v' is not present in all returned tables", MyQuery.TimeColumn)
+				return response
+			}
+			timeCol := frame.Fields[timeOverrideIndex]
+			nonTimeCols := append(frame.Fields[:timeOverrideIndex], frame.Fields[timeOverrideIndex+1:]...)
+			frame.Fields = append([]*data.Field{timeCol}, nonTimeCols...)
+		}
+	}
 	return response
 }
 
-// CheckHealth handles health checks sent from Grafana to the plugin.
-// The main use case for these health checks is the test button on the
-// datasource configuration page which allows users to verify that
-// a datasource is working as expected.
 func (d *KdbDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	log.DefaultLogger.Info("CheckHealth called", "request", req)
+	userDict := buildUserKdbDict(req.PluginContext.User)
+	datasourceDict := buildDatasourceKdbDict(req.PluginContext.DataSourceInstanceSettings)
+	k := kdb.SymbolV([]string{"AQUAQ_KDB_BACKEND_GRAF_DATASOURCE", "Time", "OrgID", "Datasource", "User", "Query", "Timeout"})
+	v := kdb.NewList(
+		kdb.Float(ADAPTOR_VERSION),
+		kdb.Atom(-kdb.KP, time.Now()),
+		kdb.Long(req.PluginContext.OrgID),
+		datasourceDict,
+		userDict,
+		kdb.NewDict(kdb.SymbolV([]string{"Query", "QueryType"}), kdb.NewList(kdb.Atom(kdb.KC, "1+1"), kdb.Symbol("HEALTHCHECK"))),
+		kdb.Long(int64(d.DialTimeout)))
 
-	test, err := d.RunKdbQuerySync("1+1", time.Duration(d.DialTimeout)*time.Millisecond)
+	test, err := d.RunKdbQuerySync(kdb.NewList(kdb.Atom(kdb.KC, "{[x] value x[`Query;`Query]}"), kdb.NewDict(k, v)), d.DialTimeout)
 	if err != nil {
 		log.DefaultLogger.Error("CheckHealth error: %v", err)
 		return &backend.CheckHealthResult{Status: backend.HealthStatusError, Message: fmt.Sprintf("Error querying kdb+ process: %v", err)}, nil
@@ -356,6 +409,3 @@ func (d *KdbDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthR
 		Message: message,
 	}, nil
 }
-
-// SubscribeStream is called when a client wants to connect to a stream. This callback
-// allows sending the first message.
