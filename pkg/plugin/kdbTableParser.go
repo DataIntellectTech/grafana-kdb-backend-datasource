@@ -101,7 +101,6 @@ func getDepth(colArray []*kdb.K) (int, error) {
 	d := -1
 	aggPresent := false
 	for _, K := range colArray {
-		//log.DefaultLogger.Info(fmt.Sprintf("%v", K))
 		if K.Type < 0 {
 			aggPresent = true
 			continue
