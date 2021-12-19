@@ -50,6 +50,5 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
         });
     return backendQuery
 
-
   }
 }
