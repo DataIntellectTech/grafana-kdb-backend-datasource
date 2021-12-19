@@ -34,9 +34,7 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
           method: 'POST',
           data: body,
         }).then((response: any) => {
-          let values = [];
-          console.log("response data: ");
-          console.log(response.data);
+          let values = []
           for (let key in response.data.results){
             for (let result in response.data.results[key].frames){
               for (let col in response.data.results[key].frames[result].data.values[0]) {
