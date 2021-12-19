@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -24,6 +23,8 @@ import (
 // methods that implement backend.StreamHandler. Implementing instancemgmt.InstanceDisposer
 // is useful to clean up resources used by previous datasource instance when a new datasource
 // instance created upon datasource settings changed.
+const ADAPTOR_VERSION = float64(1.0)
+
 var (
 	_ backend.QueryDataHandler      = (*KdbDatasource)(nil)
 	_ backend.CheckHealthHandler    = (*KdbDatasource)(nil)
@@ -245,6 +246,40 @@ func (d *KdbDatasource) closeConnection() error {
 	return err
 }
 
+func buildDatasourceKdbDict(settings *backend.DataSourceInstanceSettings) *kdb.K {
+	datasourceKeys := kdb.SymbolV([]string{"ID", "Name", "UID", "URL", "Updated", "User"})
+	datasourceValues := kdb.NewList(
+		kdb.Long(settings.ID),
+		kdb.Atom(kdb.KC, settings.Name),
+		kdb.Atom(kdb.KC, settings.UID),
+		kdb.Atom(kdb.KC, settings.URL),
+		kdb.Atom(-kdb.KP, settings.Updated),
+		kdb.Atom(kdb.KC, settings.User))
+	return kdb.NewDict(datasourceKeys, datasourceValues)
+}
+
+func buildUserKdbDict(settings *backend.User) *kdb.K {
+	userKeys := kdb.SymbolV([]string{"UserName", "UserEmail", "UserLogin", "UserRole"})
+	userValues := kdb.NewList(
+		kdb.Atom(kdb.KC, settings.Name),
+		kdb.Atom(kdb.KC, settings.Email),
+		kdb.Atom(kdb.KC, settings.Login),
+		kdb.Atom(kdb.KC, settings.Role))
+	return kdb.NewDict(userKeys, userValues)
+}
+
+func buildQueryKdbDict(q backend.DataQuery, qText string) *kdb.K {
+	queryKeys := kdb.SymbolV([]string{"RefID", "Query", "QueryType", "MaxDataPoints", "Interval", "TimeRange"})
+	queryValues := kdb.NewList(
+		kdb.Atom(kdb.KC, q.RefID),
+		kdb.Atom(kdb.KC, qText),
+		kdb.Symbol("QUERY"),
+		kdb.Long(q.MaxDataPoints),
+		kdb.Long(int64(q.Interval)),
+		kdb.Atom(kdb.KP, []time.Time{q.TimeRange.From, q.TimeRange.To}))
+	return kdb.NewDict(queryKeys, queryValues)
+}
+
 // QueryData handles multiple queries and returns multiple responses.
 // req contains the queries []DataQuery (where each query contains RefID as a unique identifier).
 // The QueryDataResponse contains a map of RefID to the response for each query, and each response
@@ -254,9 +289,8 @@ func (d *KdbDatasource) QueryData(ctx context.Context, req *backend.QueryDataReq
 	response := backend.NewQueryDataResponse()
 
 	// loop over queries and execute them individually.
-	for i, q := range req.Queries {
+	for _, q := range req.Queries {
 		res := d.query(ctx, req.PluginContext, q)
-		log.DefaultLogger.Info(strconv.Itoa(i))
 		// save the response in a hashmap
 		// based on with RefID as identifier
 		response.Responses[q.RefID] = res
@@ -277,33 +311,21 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	if MyQuery.Timeout < 1 {
 		MyQuery.Timeout = 10000
 	}
-	timeout := time.Duration(MyQuery.Timeout) * time.Millisecond
 
-	userKeys := kdb.SymbolV([]string{"UserName", "UserEmail", "UserLogin", "UserRole"})
-	userValues := kdb.NewList(
-		kdb.Atom(kdb.KC, pCtx.User.Name),
-		kdb.Atom(kdb.KC, pCtx.User.Email),
-		kdb.Atom(kdb.KC, pCtx.User.Login),
-		kdb.Atom(kdb.KC, pCtx.User.Role))
-	datasourceKeys := kdb.SymbolV([]string{"ID", "Name", "UID", "URL", "Updated", "User"})
-	datasourceValues := kdb.NewList(
-		kdb.Long(pCtx.DataSourceInstanceSettings.ID),
-		kdb.Atom(kdb.KC, pCtx.DataSourceInstanceSettings.Name),
-		kdb.Atom(kdb.KC, pCtx.DataSourceInstanceSettings.UID),
-		kdb.Atom(kdb.KC, pCtx.DataSourceInstanceSettings.URL),
-		kdb.Atom(-kdb.KP, pCtx.DataSourceInstanceSettings.Updated),
-		kdb.Atom(kdb.KC, pCtx.DataSourceInstanceSettings.User))
+	userDict := buildUserKdbDict(pCtx.User)
+	datasourceDict := buildDatasourceKdbDict(pCtx.DataSourceInstanceSettings)
+	queryDict := buildQueryKdbDict(query, MyQuery.QueryText)
 	masterKeys := kdb.SymbolV([]string{"AQUAQ_KDB_BACKEND_GRAF_DATASOURCE", "Time", "OrgID", "Datasource", "User", "Query", "Timeout"})
 	masterValues := kdb.NewList(
-		kdb.Float(float64(1.0)),
+		kdb.Float(ADAPTOR_VERSION),
 		kdb.Atom(-kdb.KP, time.Now()),
 		kdb.Long(pCtx.OrgID),
-		kdb.NewDict(datasourceKeys, datasourceValues),
-		kdb.NewDict(userKeys, userValues),
-		kdb.Atom(kdb.KC, MyQuery.QueryText),
-		kdb.Atom(-kdb.KN, timeout))
+		datasourceDict,
+		userDict,
+		queryDict,
+		kdb.Long(int64(MyQuery.Timeout)))
 
-	kdbResponse, err := d.RunKdbQuerySync(kdb.NewList(kdb.Atom(kdb.KC, "{[x] value x[`Query]}"), kdb.NewDict(masterKeys, masterValues)), timeout)
+	kdbResponse, err := d.RunKdbQuerySync(kdb.NewList(kdb.Atom(kdb.KC, "{[x] value x[`Query;`Query]}"), kdb.NewDict(masterKeys, masterValues)), time.Duration(MyQuery.Timeout)*time.Millisecond)
 	if err != nil {
 		response.Error = err
 		return response
@@ -337,8 +359,19 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 // a datasource is working as expected.
 func (d *KdbDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	log.DefaultLogger.Info("CheckHealth called", "request", req)
+	userDict := buildUserKdbDict(req.PluginContext.User)
+	datasourceDict := buildDatasourceKdbDict(req.PluginContext.DataSourceInstanceSettings)
+	k := kdb.SymbolV([]string{"AQUAQ_KDB_BACKEND_GRAF_DATASOURCE", "Time", "OrgID", "Datasource", "User", "Query", "Timeout"})
+	v := kdb.NewList(
+		kdb.Float(ADAPTOR_VERSION),
+		kdb.Atom(-kdb.KP, time.Now()),
+		kdb.Long(req.PluginContext.OrgID),
+		datasourceDict,
+		userDict,
+		kdb.NewDict(kdb.SymbolV([]string{"Query", "QueryType"}), kdb.NewList(kdb.Atom(kdb.KC, "1+1"), kdb.Symbol("HEALTHCHECK"))),
+		kdb.Long(int64(d.DialTimeout)))
 
-	test, err := d.RunKdbQuerySync(kdb.Atom(kdb.KC, "1+1"), time.Duration(d.DialTimeout)*time.Millisecond)
+	test, err := d.RunKdbQuerySync(kdb.NewList(kdb.Atom(kdb.KC, "{[x] value x[`Query;`Query]}"), kdb.NewDict(k, v)), d.DialTimeout)
 	if err != nil {
 		log.DefaultLogger.Error("CheckHealth error: %v", err)
 		return &backend.CheckHealthResult{Status: backend.HealthStatusError, Message: fmt.Sprintf("Error querying kdb+ process: %v", err)}, nil
