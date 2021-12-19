@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
+	"github.com/grafana/grafana-plugin-sdk-go/data"
 	kdb "github.com/sv/kdbgo"
 )
 
@@ -25,9 +26,9 @@ var (
 type QueryModel struct {
 	QueryText         string `json:"queryText"`
 	Timeout           int    `json:"timeOut"`
-	useTimeColumn     bool   `json:useTimeColumn`
-	timeColumn        string `json:timeColumn`
-	includeKeyColumns bool   `json:includeKeyColumns`
+	UseTimeColumn     bool   `json:"useTimeColumn"`
+	TimeColumn        string `json:"timeColumn"`
+	IncludeKeyColumns bool   `json:"includeKeyColumns"`
 }
 
 type kdbSyncQuery struct {
@@ -326,7 +327,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 			response.Frames = append(response.Frames, frame)
 		}
 	case kdbResponse.Type == kdb.XD:
-		frames, err := ParseGroupedKdbTable(kdbResponse)
+		frames, err := ParseGroupedKdbTable(kdbResponse, MyQuery.IncludeKeyColumns)
 		if err != nil {
 			response.Error = err
 		} else {
@@ -334,6 +335,26 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 		}
 	default:
 		response.Error = fmt.Errorf("Returned object of unsupported type, only tables supported")
+	}
+
+	// Handle temporal column override
+	if MyQuery.UseTimeColumn {
+		for _, frame := range response.Frames {
+			timeOverrideIndex := -1
+			for v, field := range frame.Fields {
+				if field.Name == MyQuery.TimeColumn {
+					timeOverrideIndex = v
+					break
+				}
+			}
+			if timeOverrideIndex == -1 {
+				response.Error = fmt.Errorf("Temporal column override '%v' is not present in all returned tables", MyQuery.TimeColumn)
+				return response
+			}
+			timeCol := frame.Fields[timeOverrideIndex]
+			nonTimeCols := append(frame.Fields[:timeOverrideIndex], frame.Fields[timeOverrideIndex+1:]...)
+			frame.Fields = append([]*data.Field{timeCol}, nonTimeCols...)
+		}
 	}
 	return response
 }

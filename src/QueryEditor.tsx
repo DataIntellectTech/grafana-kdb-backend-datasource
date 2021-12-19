@@ -24,10 +24,8 @@ export class QueryEditor extends PureComponent<Props> {
         onChange({ ...query, useTimeColumn: !query.useTimeColumn });
     };
     onTimeColumnChange = (event: ChangeEvent<HTMLInputElement>) => {
-        if((/^\d+$/.test(event.target.value) || event.target.value==="")){
-            const { onChange, query } = this.props;
-            onChange({ ...query, timeColumn: event.target.value });
-        }
+        const { onChange, query } = this.props;
+        onChange({ ...query, timeColumn: event.target.value });
     };
     onIncludeKeyColumnsToggle = (event: SyntheticEvent<HTMLInputElement, Event>) => {
         const { onChange, query } = this.props;
@@ -66,7 +64,7 @@ export class QueryEditor extends PureComponent<Props> {
                     <InlineField
                         label="Use Custom Time Column"
                         labelWidth={26}
-                        tooltip="Select to use a custom temporal column as the time axis"
+                        tooltip="Grafana will default to using the left-most temporal column as the time axis. Select this to use a different temporal column as the time axis"
                         >
                         <InlineSwitch checked={useTimeColumn} label="Use Custom Time Column" onChange={this.onUseTimeColumnToggle}/>
                     </InlineField>

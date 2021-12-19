@@ -53,7 +53,7 @@ func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 	return frame, nil
 }
 
-func ParseGroupedKdbTable(res *kdb.K) ([]*data.Frame, error) {
+func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 	kdbDict := res.Data.(kdb.Dict)
 	if kdbDict.Key.Type != kdb.XT || kdbDict.Value.Type != kdb.XT {
 		return nil, fmt.Errorf("Either the key or the value of the returned dictionary obejct is not a table of type 98.")
@@ -72,8 +72,15 @@ func ParseGroupedKdbTable(res *kdb.K) ([]*data.Frame, error) {
 		if err != nil {
 			return nil, err
 		}
-		masterCols := append(keyData.Key.Data.([]string), rowData.Key.Data.([]string)...)
-		masterData := append(keyData.Value.Data.([]*kdb.K), rowData.Value.Data.([]*kdb.K)...)
+		var masterCols []string
+		var masterData []*kdb.K
+		if includeKeys {
+			masterCols = append(keyData.Key.Data.([]string), rowData.Key.Data.([]string)...)
+			masterData = append(keyData.Value.Data.([]*kdb.K), rowData.Value.Data.([]*kdb.K)...)
+		} else {
+			masterCols = rowData.Key.Data.([]string)
+			masterData = rowData.Value.Data.([]*kdb.K)
+		}
 		for i, colName := range masterCols {
 			KObj := masterData[i]
 			var dat interface{}
