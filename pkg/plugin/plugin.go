@@ -14,15 +14,6 @@ import (
 	kdb "github.com/sv/kdbgo"
 )
 
-// Make sure SampleDatasource implements required interfaces. This is important to do
-// since otherwise we will only get a not implemented error response from plugin in
-// runtime. In this example datasource instance implements backend.QueryDataHandler,
-// backend.CheckHealthHandler, backend.StreamHandler interfaces. Plugin should not
-// implement all these interfaces - only those which are required for a particular task.
-// For example if plugin does not need streaming functionality then you are free to remove
-// methods that implement backend.StreamHandler. Implementing instancemgmt.InstanceDisposer
-// is useful to clean up resources used by previous datasource instance when a new datasource
-// instance created upon datasource settings changed.
 const ADAPTOR_VERSION = float64(1.0)
 
 var (
@@ -54,9 +45,7 @@ type kdbSyncRes struct {
 }
 
 type KdbDatasource struct {
-	// Host for kdb connection
-	Host string `json:"host"`
-	// port for kdb connection
+	Host                string `json:"host"`
 	Port                int    `json:"port"`
 	Timeout             string `json:"timeout"`
 	WithTls             bool   `json:"withTLS"`
@@ -193,9 +182,6 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	return &client, nil
 }
 
-// Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
-// created. As soon as datasource settings change detected by SDK old datasource instance will
-// be disposed and a new one will be created using NewKdbDatasource factory function.
 func (d *KdbDatasource) Dispose() {
 	log.DefaultLogger.Info("Dispose called")
 	if d.IsOpen {
@@ -280,10 +266,6 @@ func buildQueryKdbDict(q backend.DataQuery, qText string) *kdb.K {
 	return kdb.NewDict(queryKeys, queryValues)
 }
 
-// QueryData handles multiple queries and returns multiple responses.
-// req contains the queries []DataQuery (where each query contains RefID as a unique identifier).
-// The QueryDataResponse contains a map of RefID to the response for each query, and each response
-// contains Frames ([]*Frame).
 func (d *KdbDatasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
 	// create response struct
 	response := backend.NewQueryDataResponse()
@@ -353,10 +335,6 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	return response
 }
 
-// CheckHealth handles health checks sent from Grafana to the plugin.
-// The main use case for these health checks is the test button on the
-// datasource configuration page which allows users to verify that
-// a datasource is working as expected.
 func (d *KdbDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	log.DefaultLogger.Info("CheckHealth called", "request", req)
 	userDict := buildUserKdbDict(req.PluginContext.User)
@@ -407,6 +385,3 @@ func (d *KdbDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthR
 		Message: message,
 	}, nil
 }
-
-// SubscribeStream is called when a client wants to connect to a stream. This callback
-// allows sending the first message.
