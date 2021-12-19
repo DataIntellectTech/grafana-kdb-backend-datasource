@@ -64,15 +64,18 @@ func ParseGroupedKdbTable(res *kdb.K) ([]*data.Frame, error) {
 
 	for i := 0; i < rc; i++ {
 		k := kdbDict.Key.Data.(kdb.Table)
-		frameName := correctedTableIndex(k, i).Value.String()
+		keyData := correctedTableIndex(k, i)
+		frameName := keyData.Value.String()
 		frame := data.NewFrame(frameName)
 		rowData := correctedTableIndex(valData, i)
 		depth, err := getDepth(rowData.Value.Data.([]*kdb.K))
 		if err != nil {
 			return nil, err
 		}
-		for i, colName := range rowData.Key.Data.([]string) {
-			KObj := rowData.Value.Data.([]*kdb.K)[i]
+		masterCols := append(keyData.Key.Data.([]string), rowData.Key.Data.([]string)...)
+		masterData := append(keyData.Value.Data.([]*kdb.K), rowData.Value.Data.([]*kdb.K)...)
+		for i, colName := range masterCols {
+			KObj := masterData[i]
 			var dat interface{}
 			if KObj.Type < 0 {
 				dat = projectAtom(KObj.Data, depth)
