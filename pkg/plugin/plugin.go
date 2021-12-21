@@ -250,11 +250,21 @@ func buildDatasourceKdbDict(settings *backend.DataSourceInstanceSettings) *kdb.K
 
 func buildUserKdbDict(settings *backend.User) *kdb.K {
 	userKeys := kdb.SymbolV([]string{"UserName", "UserEmail", "UserLogin", "UserRole"})
-	userValues := kdb.NewList(
-		kdb.Atom(kdb.KC, settings.Name),
-		kdb.Atom(kdb.KC, settings.Email),
-		kdb.Atom(kdb.KC, settings.Login),
-		kdb.Atom(kdb.KC, settings.Role))
+	var userValues *kdb.K
+	if settings == nil{
+		userValues = kdb.NewList(
+			kdb.Atom(kdb.KC, ""),
+			kdb.Atom(kdb.KC,""),
+			kdb.Atom(kdb.KC, ""),
+			kdb.Atom(kdb.KC, ""))
+	}else {
+
+		userValues = kdb.NewList(
+			kdb.Atom(kdb.KC, settings.Name),
+			kdb.Atom(kdb.KC, settings.Email),
+			kdb.Atom(kdb.KC, settings.Login),
+			kdb.Atom(kdb.KC, settings.Role))
+	}
 	return kdb.NewDict(userKeys, userValues)
 }
 
@@ -297,6 +307,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	if MyQuery.Timeout < 1 {
 		MyQuery.Timeout = 10000
 	}
+	log.DefaultLogger.Info(fmt.Sprintf("%v", pCtx))
 
 	userDict := buildUserKdbDict(pCtx.User)
 	datasourceDict := buildDatasourceKdbDict(pCtx.DataSourceInstanceSettings)
