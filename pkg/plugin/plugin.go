@@ -236,59 +236,11 @@ func (d *KdbDatasource) closeConnection() error {
 	return err
 }
 
-func buildDatasourceKdbDict(settings *backend.DataSourceInstanceSettings) *kdb.K {
-	datasourceKeys := kdb.SymbolV([]string{"ID", "Name", "UID", "URL", "Updated", "User"})
-	datasourceValues := kdb.NewList(
-		kdb.Long(settings.ID),
-		kdb.Atom(kdb.KC, settings.Name),
-		kdb.Atom(kdb.KC, settings.UID),
-		kdb.Atom(kdb.KC, settings.URL),
-		kdb.Atom(-kdb.KP, settings.Updated),
-		kdb.Atom(kdb.KC, settings.User))
-	return kdb.NewDict(datasourceKeys, datasourceValues)
-}
-
-func buildUserKdbDict(settings *backend.User) *kdb.K {
-	userKeys := kdb.SymbolV([]string{"UserName", "UserEmail", "UserLogin", "UserRole"})
-	var userValues *kdb.K
-	if settings == nil{
-		userValues = kdb.NewList(
-			kdb.Atom(kdb.KC, ""),
-			kdb.Atom(kdb.KC,""),
-			kdb.Atom(kdb.KC, ""),
-			kdb.Atom(kdb.KC, ""))
-	}else {
-
-		userValues = kdb.NewList(
-			kdb.Atom(kdb.KC, settings.Name),
-			kdb.Atom(kdb.KC, settings.Email),
-			kdb.Atom(kdb.KC, settings.Login),
-			kdb.Atom(kdb.KC, settings.Role))
-	}
-	return kdb.NewDict(userKeys, userValues)
-}
-
-func buildQueryKdbDict(q backend.DataQuery, qText string) *kdb.K {
-	queryKeys := kdb.SymbolV([]string{"RefID", "Query", "QueryType", "MaxDataPoints", "Interval", "TimeRange"})
-	queryValues := kdb.NewList(
-		kdb.Atom(kdb.KC, q.RefID),
-		kdb.Atom(kdb.KC, qText),
-		kdb.Symbol("QUERY"),
-		kdb.Long(q.MaxDataPoints),
-		kdb.Long(int64(q.Interval)),
-		kdb.Atom(kdb.KP, []time.Time{q.TimeRange.From, q.TimeRange.To}))
-	return kdb.NewDict(queryKeys, queryValues)
-}
-
 func (d *KdbDatasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	// create response struct
 	response := backend.NewQueryDataResponse()
 
-	// loop over queries and execute them individually.
 	for _, q := range req.Queries {
 		res := d.query(ctx, req.PluginContext, q)
-		// save the response in a hashmap
-		// based on with RefID as identifier
 		response.Responses[q.RefID] = res
 	}
 
