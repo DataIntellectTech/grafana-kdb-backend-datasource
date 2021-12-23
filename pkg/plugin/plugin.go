@@ -165,7 +165,7 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	log.DefaultLogger.Info("Making synchronous response channel")
 	client.syncResChan = make(chan *kdbSyncRes)
 
-	// making signals channel (this should be done through ctx)
+	// making signals channel
 	log.DefaultLogger.Info("Making signals channel")
 	client.signals = make(chan int)
 
@@ -259,8 +259,6 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	if MyQuery.Timeout < 1 {
 		MyQuery.Timeout = 10000
 	}
-	log.DefaultLogger.Info(fmt.Sprintf("%v", pCtx))
-
 	userDict := buildUserKdbDict(pCtx.User)
 	datasourceDict := buildDatasourceKdbDict(pCtx.DataSourceInstanceSettings)
 	queryDict := buildQueryKdbDict(query, MyQuery.QueryText)
