@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	uuid "github.com/nu7hatch/gouuid"
 	kdb "github.com/sv/kdbgo"
@@ -67,57 +66,43 @@ func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 	keyColCount := len(k.Columns)
 
 	for row := 0; row < rc; row++ {
-		log.DefaultLogger.Info(fmt.Sprintf("PARSING ROW %v", row))
-		log.DefaultLogger.Info("INDEXING INTO KEY TABLE")
 		keyData := correctedTableIndex(k, row)
-		log.DefaultLogger.Info("STRINGING KEYS")
 		frameName := parseFrameName(keyData.Value)
 		frame := data.NewFrame(frameName)
-		log.DefaultLogger.Info("INDEXING INTO VALUE TABLE")
 		rowData := correctedTableIndex(valData, row)
-		log.DefaultLogger.Info("GETTING DEPTH")
 		depth, err := getDepth(rowData.Value.Data.([]*kdb.K))
 		if err != nil {
 			return nil, err
 		}
-		log.DefaultLogger.Info("BUILDING MASTERCOLS AND MASTERDATA")
 		var masterCols []string
 		var masterData []*kdb.K
 		if includeKeys {
-			log.DefaultLogger.Info("INCLUDING KEYS")
 			masterCols = append(keyData.Key.Data.([]string), rowData.Key.Data.([]string)...)
 			masterData = append(keyData.Value.Data.([]*kdb.K), rowData.Value.Data.([]*kdb.K)...)
 		} else {
-			log.DefaultLogger.Info("NOT INCLUDING KEYS")
 			masterCols = rowData.Key.Data.([]string)
 			masterData = rowData.Value.Data.([]*kdb.K)
 		}
-		log.DefaultLogger.Info("PARSING EACH COLUMN...")
 		for i, colName := range masterCols {
 			KObj := masterData[i]
 			var dat interface{}
 			if KObj.Type < 0 {
-				log.DefaultLogger.Info(fmt.Sprintf("Projecting %v with object %v", colName, KObj))
 				if KObj.Type == -kdb.KC {
 					KObj.Data = string(KObj.Data.(byte))
 				}
 				dat = projectAtom(KObj.Data, depth)
 			} else {
-				log.DefaultLogger.Info(fmt.Sprintf("parsing %v with object %v", colName, KObj))
 				switch {
 				case KObj.Type == kdb.KC:
 					// if the column is a key column, this is a string. Otherwise it is a char list
 					if i < keyColCount {
-						log.DefaultLogger.Info("Interpreting key column as string and parsing")
 						dat = projectAtom(KObj.Data, depth)
 					} else {
 						dat = charParser(KObj)
 					}
 				case KObj.Type > kdb.K0:
-					log.DefaultLogger.Info("standard vector object")
 					dat = KObj.Data
 				case KObj.Type == kdb.K0:
-					log.DefaultLogger.Info("Interpreting as string and parsing")
 					stringColumn, err := stringParser(KObj)
 					if err != nil {
 						return nil, fmt.Errorf("Error parsing data of type K0")
