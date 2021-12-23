@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/data"
@@ -56,18 +57,19 @@ func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 	kdbDict := res.Data.(kdb.Dict)
 	if kdbDict.Key.Type != kdb.XT || kdbDict.Value.Type != kdb.XT {
-		return nil, fmt.Errorf("Either the key or the value of the returned dictionary obejct is not a table of type 98.")
+		return nil, fmt.Errorf("Either the key or the value of the returned dictionary object is not a table of type 98.")
 	}
 	rc := kdbDict.Key.Len()
 	valData := kdbDict.Value.Data.(kdb.Table)
 	frameArray := make([]*data.Frame, rc)
+	k := kdbDict.Key.Data.(kdb.Table)
+	keyColCount := len(k.Columns)
 
-	for i := 0; i < rc; i++ {
-		k := kdbDict.Key.Data.(kdb.Table)
-		keyData := correctedTableIndex(k, i)
-		frameName := keyData.Value.String()
+	for row := 0; row < rc; row++ {
+		keyData := correctedTableIndex(k, row)
+		frameName := parseFrameName(keyData.Value)
 		frame := data.NewFrame(frameName)
-		rowData := correctedTableIndex(valData, i)
+		rowData := correctedTableIndex(valData, row)
 		depth, err := getDepth(rowData.Value.Data.([]*kdb.K))
 		if err != nil {
 			return nil, err
@@ -85,11 +87,19 @@ func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 			KObj := masterData[i]
 			var dat interface{}
 			if KObj.Type < 0 {
+				if KObj.Type == -kdb.KC {
+					KObj.Data = string(KObj.Data.(byte))
+				}
 				dat = projectAtom(KObj.Data, depth)
 			} else {
 				switch {
 				case KObj.Type == kdb.KC:
-					dat = charParser(KObj)
+					// if the column is a key column, this is a string. Otherwise it is a char list
+					if i < keyColCount {
+						dat = projectAtom(KObj.Data, depth)
+					} else {
+						dat = charParser(KObj)
+					}
 				case KObj.Type > kdb.K0:
 					dat = KObj.Data
 				case KObj.Type == kdb.K0:
@@ -102,9 +112,36 @@ func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 			}
 			frame.Fields = append(frame.Fields, data.NewField(colName, nil, dat))
 		}
-		frameArray[i] = frame
+		frameArray[row] = frame
 	}
 	return frameArray, nil
+}
+
+func parseFrameName(key *kdb.K) string {
+	// handling for homogenous dictionaries
+	var frameNameArray []string
+	if key.Type != kdb.K0 {
+		if key.Type == kdb.KC {
+			for _, l := range key.Data.([]interface{}) {
+				frameNameArray = append(frameNameArray, string(l.(byte)))
+			}
+		} else {
+			for _, val := range key.Data.([]interface{}) {
+				frameNameArray = append(frameNameArray, fmt.Sprint(val))
+			}
+		}
+		// handling for heterogenous dictionaries
+	} else {
+		for _, obj := range key.Data.([]*kdb.K) {
+			if obj.Type == -kdb.KC {
+				frameNameArray = append(frameNameArray, string(obj.Data.(byte)))
+			} else {
+				frameNameArray = append(frameNameArray, fmt.Sprint(obj.Data))
+			}
+		}
+	}
+	// concat all key strings together
+	return strings.Join(frameNameArray, " - ")
 }
 
 func getDepth(colArray []*kdb.K) (int, error) {
@@ -178,7 +215,7 @@ func indexKdbArray(k *kdb.K, i int) interface{} {
 	case k.Type == kdb.KF:
 		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]float64)[i]}
 	case k.Type == kdb.KC:
-		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]byte)[i]}
+		return &kdb.K{-k.Type, kdb.NONE, k.Data.(string)[i]}
 	case k.Type == kdb.KS:
 		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]string)[i]}
 	case k.Type == kdb.KP:

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	kdb "github.com/sv/kdbgo"
 )
@@ -95,4 +96,58 @@ func (d *KdbDatasource) kdbHandleListener() {
 		}
 		d.rawReadChan <- &kdbRawRead{result: res, err: err}
 	}
+}
+
+func buildDatasourceKdbDict(settings *backend.DataSourceInstanceSettings) *kdb.K {
+	datasourceKeys := kdb.SymbolV([]string{"ID", "Name", "UID", "URL", "Updated", "User"})
+	var datasourceValues *kdb.K
+	if settings == nil {
+		datasourceValues = kdb.NewList(
+			kdb.Long(-1),
+			kdb.Atom(kdb.KC, ""),
+			kdb.Atom(kdb.KC, ""),
+			kdb.Atom(kdb.KC, ""),
+			kdb.Atom(-kdb.KP, time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)),
+			kdb.Atom(kdb.KC, ""))
+	} else {
+		datasourceValues = kdb.NewList(
+			kdb.Long(settings.ID),
+			kdb.Atom(kdb.KC, settings.Name),
+			kdb.Atom(kdb.KC, settings.UID),
+			kdb.Atom(kdb.KC, settings.URL),
+			kdb.Atom(-kdb.KP, settings.Updated),
+			kdb.Atom(kdb.KC, settings.User))
+	}
+	return kdb.NewDict(datasourceKeys, datasourceValues)
+}
+
+func buildUserKdbDict(settings *backend.User) *kdb.K {
+	userKeys := kdb.SymbolV([]string{"UserName", "UserEmail", "UserLogin", "UserRole"})
+	var userValues *kdb.K
+	if settings == nil {
+		userValues = kdb.NewList(
+			kdb.Atom(kdb.KC, ""),
+			kdb.Atom(kdb.KC, ""),
+			kdb.Atom(kdb.KC, ""),
+			kdb.Atom(kdb.KC, ""))
+	} else {
+		userValues = kdb.NewList(
+			kdb.Atom(kdb.KC, settings.Name),
+			kdb.Atom(kdb.KC, settings.Email),
+			kdb.Atom(kdb.KC, settings.Login),
+			kdb.Atom(kdb.KC, settings.Role))
+	}
+	return kdb.NewDict(userKeys, userValues)
+}
+
+func buildQueryKdbDict(q backend.DataQuery, qText string) *kdb.K {
+	queryKeys := kdb.SymbolV([]string{"RefID", "Query", "QueryType", "MaxDataPoints", "Interval", "TimeRange"})
+	queryValues := kdb.NewList(
+		kdb.Atom(kdb.KC, q.RefID),
+		kdb.Atom(kdb.KC, qText),
+		kdb.Symbol("QUERY"),
+		kdb.Long(q.MaxDataPoints),
+		kdb.Long(int64(q.Interval)),
+		kdb.Atom(kdb.KP, []time.Time{q.TimeRange.From, q.TimeRange.To}))
+	return kdb.NewDict(queryKeys, queryValues)
 }
