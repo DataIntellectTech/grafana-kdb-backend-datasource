@@ -3,6 +3,7 @@ package plugin
 import (
 	"fmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,7 +47,7 @@ func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 	tabData := kdbTable.Data
 
 	for colIndex, columnName := range kdbTable.Columns {
-		//Manual handling of string cols
+		log.DefaultLogger.Info(strconv.Itoa(int(tabData[colIndex].Type)))
 		switch {
 		case tabData[colIndex].Type == kdb.K0:
 			stringColumn, err := stringParser(tabData[colIndex])
@@ -56,16 +57,27 @@ func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, stringColumn))
 		case tabData[colIndex].Type == kdb.KC:
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, charParser(tabData[colIndex])))
+		case tabData[colIndex].Type == kdb.KN:
+			durArr := tabData[colIndex].Data.([]time.Duration)
+			durIntArr := make([]int64, len(durArr))
+			for i, dur := range durArr {
+				durIntArr[i] = int64(dur)
+				frame.Fields = append(frame.Fields, data.NewField(columnName, nil, durIntArr))
+			}
 		case tabData[colIndex].Type == kdb.UU:
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, guidParser(tabData[colIndex])))
 		case tabData[colIndex].Type == kdb.KM:
 			//Doesnt work
 			log.DefaultLogger.Info("String below")
 			log.DefaultLogger.Info(tabData[colIndex].String())
-			log.DefaultLogger.Info("Before")
-			anotherData := tabData[colIndex].Data.([]float32)
-			log.DefaultLogger.Info("I RAN")
-			_ = anotherData
+			log.DefaultLogger.Info("I above  ")
+
+			for i, _ := range tabData[colIndex].Data.([]time.Month) {
+				log.DefaultLogger.Info("In Loop 2")
+				log.DefaultLogger.Info(strconv.Itoa(i))
+			}
+			log.DefaultLogger.Info("i below")
+
 		default:
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, tabData[colIndex].Data))
 		}
