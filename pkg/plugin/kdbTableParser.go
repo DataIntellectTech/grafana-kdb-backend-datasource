@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"strings"
 	"time"
 
@@ -9,6 +10,15 @@ import (
 	uuid "github.com/nu7hatch/gouuid"
 	kdb "github.com/sv/kdbgo"
 )
+
+func guidParser(data *kdb.K) []string {
+	uuidArr := data.Data.([]uuid.UUID)
+	guidArr := make([]string, len(uuidArr))
+	for i, entry := range uuidArr {
+		guidArr[i] = entry.String()
+	}
+	return guidArr
+}
 
 func charParser(data *kdb.K) []string {
 	byteArray := make([]string, data.Len())
@@ -46,6 +56,16 @@ func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, stringColumn))
 		case tabData[colIndex].Type == kdb.KC:
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, charParser(tabData[colIndex])))
+		case tabData[colIndex].Type == kdb.UU:
+			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, guidParser(tabData[colIndex])))
+		case tabData[colIndex].Type == kdb.KM:
+			//Doesnt work
+			log.DefaultLogger.Info("String below")
+			log.DefaultLogger.Info(tabData[colIndex].String())
+			log.DefaultLogger.Info("Before")
+			anotherData := tabData[colIndex].Data.([]float32)
+			log.DefaultLogger.Info("I RAN")
+			_ = anotherData
 		default:
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, tabData[colIndex].Data))
 		}
