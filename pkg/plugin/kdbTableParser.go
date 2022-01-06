@@ -66,29 +66,35 @@ func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, durIntArr))
 
 		case tabData[colIndex].Type == kdb.KT:
-			log.DefaultLogger.Info("Before Cast")
-			testArray := make([]int32, tabData[colIndex].Len())
-			log.DefaultLogger.Info("After Cast")
-			for i := 0; i < tabData[colIndex].Len(); i++ {
-				log.DefaultLogger.Info("In loop")
-				testArray[i] = tabData[colIndex].Index(i).(int32)
+			//Time
+			kdbTimeArr := tabData[colIndex].Data.([]kdb.Time)
+			timeArr := make([]time.Time, len(kdbTimeArr))
+			for index, t := range kdbTimeArr {
+				timeArr[index] = time.Time(t)
 			}
-
-			for _, x := range testArray {
-				log.DefaultLogger.Info(strconv.Itoa(int(x)))
-			}
+			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, timeArr))
 
 		case tabData[colIndex].Type == kdb.UU:
+			//GUID
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, guidParser(tabData[colIndex])))
+		case tabData[colIndex].Type == kdb.KU:
+			//Minute
+			minArr := tabData[colIndex].Data.([]kdb.Minute)
+			minTimeArr := make([]time.Time, len(minArr))
+			for index, min := range minArr {
+				minTimeArr[index] = time.Time(min)
+			}
+			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, minTimeArr))
 		case tabData[colIndex].Type == kdb.KV:
-
-			//log.DefaultLogger.Info("Before dur cast")
-			//durArr := tabData[colIndex].Data.([]time.Second)
-			//_ = durArr
-			//log.DefaultLogger.Info("After cast")
-
+			//Second
+			secArr := tabData[colIndex].Data.([]kdb.Second)
+			secTimeArr := make([]time.Time, len(secArr))
+			for index, sec := range secArr {
+				secTimeArr[index] = time.Time(sec)
+			}
+			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, secTimeArr))
 		case tabData[colIndex].Type == kdb.KM:
-			// Month Handler
+			// Month
 			monthArr := tabData[colIndex].Data.([]kdb.Month)
 			monthIntArr := make([]int32, len(monthArr))
 			for index, val := range monthArr {
