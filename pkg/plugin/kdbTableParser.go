@@ -62,21 +62,39 @@ func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 			durIntArr := make([]int64, len(durArr))
 			for i, dur := range durArr {
 				durIntArr[i] = int64(dur)
-				frame.Fields = append(frame.Fields, data.NewField(columnName, nil, durIntArr))
 			}
+			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, durIntArr))
+
+		case tabData[colIndex].Type == kdb.KT:
+			log.DefaultLogger.Info("Before Cast")
+			testArray := make([]int32, tabData[colIndex].Len())
+			log.DefaultLogger.Info("After Cast")
+			for i := 0; i < tabData[colIndex].Len(); i++ {
+				log.DefaultLogger.Info("In loop")
+				testArray[i] = tabData[colIndex].Index(i).(int32)
+			}
+
+			for _, x := range testArray {
+				log.DefaultLogger.Info(strconv.Itoa(int(x)))
+			}
+
 		case tabData[colIndex].Type == kdb.UU:
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, guidParser(tabData[colIndex])))
-		case tabData[colIndex].Type == kdb.KM:
-			//Doesnt work
-			log.DefaultLogger.Info("String below")
-			log.DefaultLogger.Info(tabData[colIndex].String())
-			log.DefaultLogger.Info("I above  ")
+		case tabData[colIndex].Type == kdb.KV:
 
-			for i, _ := range tabData[colIndex].Data.([]time.Month) {
-				log.DefaultLogger.Info("In Loop 2")
-				log.DefaultLogger.Info(strconv.Itoa(i))
+			//log.DefaultLogger.Info("Before dur cast")
+			//durArr := tabData[colIndex].Data.([]time.Second)
+			//_ = durArr
+			//log.DefaultLogger.Info("After cast")
+
+		case tabData[colIndex].Type == kdb.KM:
+			// Month Handler
+			monthArr := tabData[colIndex].Data.([]kdb.Month)
+			monthIntArr := make([]int32, len(monthArr))
+			for index, val := range monthArr {
+				monthIntArr[index] = int32(val)
 			}
-			log.DefaultLogger.Info("i below")
+			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, monthIntArr))
 
 		default:
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, tabData[colIndex].Data))
