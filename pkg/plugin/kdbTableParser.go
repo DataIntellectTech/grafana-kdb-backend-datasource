@@ -57,7 +57,9 @@ func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, stringColumn))
 		case tabData[colIndex].Type == kdb.KC:
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, charParser(tabData[colIndex])))
+
 		case tabData[colIndex].Type == kdb.KN:
+			//timespan
 			durArr := tabData[colIndex].Data.([]time.Duration)
 			durIntArr := make([]int64, len(durArr))
 			for i, dur := range durArr {
@@ -68,9 +70,11 @@ func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 		case tabData[colIndex].Type == kdb.KT:
 			//Time
 			kdbTimeArr := tabData[colIndex].Data.([]kdb.Time)
-			timeArr := make([]time.Time, len(kdbTimeArr))
+			timeArr := make([]int32, len(kdbTimeArr))
 			for index, t := range kdbTimeArr {
-				timeArr[index] = time.Time(t)
+				hour, min, sec := time.Time(t).Clock()
+				timeArr[index] = int32(hour*3600000 + min*60000 + sec*1000 + time.Time(t).Nanosecond()/1000000)
+
 			}
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, timeArr))
 
@@ -80,19 +84,23 @@ func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 		case tabData[colIndex].Type == kdb.KU:
 			//Minute
 			minArr := tabData[colIndex].Data.([]kdb.Minute)
-			minTimeArr := make([]time.Time, len(minArr))
-			for index, min := range minArr {
-				minTimeArr[index] = time.Time(min)
+			minTimeArr := make([]int32, len(minArr))
+			for index, entry := range minArr {
+				hour, min, _ := time.Time(entry).Clock()
+				minTimeArr[index] = int32((hour * 60) + min)
 			}
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, minTimeArr))
 		case tabData[colIndex].Type == kdb.KV:
 			//Second
 			secArr := tabData[colIndex].Data.([]kdb.Second)
-			secTimeArr := make([]time.Time, len(secArr))
-			for index, sec := range secArr {
-				secTimeArr[index] = time.Time(sec)
+			secTimeArr := make([]int32, len(secArr))
+			for index, entry := range secArr {
+				hour, min, sec := time.Time(entry).Clock()
+				secTimeArr[index] = int32(sec + (min * 60) + (hour * 3600))
+
 			}
 			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, secTimeArr))
+
 		case tabData[colIndex].Type == kdb.KM:
 			// Month
 			monthArr := tabData[colIndex].Data.([]kdb.Month)
