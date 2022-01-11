@@ -41,83 +41,85 @@ func stringParser(data *kdb.K) ([]string, error) {
 	return stringArray, nil
 }
 
+func parser(inputData *kdb.K, columnName string) *data.Field {
+
+	switch {
+	case inputData.Type == kdb.K0:
+		stringColumn, err := stringParser(inputData)
+		if err != nil {
+			//return nil, fmt.Errorf("The following column: %v return this error: %v", columnName, err)
+		}
+		return data.NewField(columnName, nil, stringColumn)
+	case inputData.Type == kdb.KC:
+		return data.NewField(columnName, nil, charParser(inputData))
+
+	case inputData.Type == kdb.KN:
+		//timespan
+		durArr := inputData.Data.([]time.Duration)
+		durIntArr := make([]int64, len(durArr))
+		for i, dur := range durArr {
+			durIntArr[i] = int64(dur)
+		}
+		return data.NewField(columnName, nil, durIntArr)
+
+	case inputData.Type == kdb.KT:
+		//Time
+		kdbTimeArr := inputData.Data.([]kdb.Time)
+		timeArr := make([]int32, len(kdbTimeArr))
+		for index, entry := range kdbTimeArr {
+			timeArr[index] = int32(time.Time(entry).Hour()*3600000 + time.Time(entry).Minute()*60000 + time.Time(entry).Second()*1000 + time.Time(entry).Nanosecond()/1000000)
+
+		}
+		return data.NewField(columnName, nil, timeArr)
+
+	case inputData.Type == kdb.UU:
+		//GUID
+		return data.NewField(columnName, nil, guidParser(inputData))
+
+	case inputData.Type == kdb.KU:
+		//Minute
+		minArr := inputData.Data.([]kdb.Minute)
+		minTimeArr := make([]int32, len(minArr))
+		for index, entry := range minArr {
+			minTimeArr[index] = int32(time.Time(entry).Minute() + time.Time(entry).Hour()*60)
+		}
+		return data.NewField(columnName, nil, minTimeArr)
+
+	case inputData.Type == kdb.KV:
+		//Second
+		secArr := inputData.Data.([]kdb.Second)
+		secTimeArr := make([]int32, len(secArr))
+		for index, entry := range secArr {
+			secTimeArr[index] = int32(time.Time(entry).Second() + time.Time(entry).Minute()*60 + time.Time(entry).Hour()*3600)
+		}
+		return data.NewField(columnName, nil, secTimeArr)
+
+	case inputData.Type == kdb.KM:
+		// Month
+		monthArr := inputData.Data.([]kdb.Month)
+		monthIntArr := make([]int32, len(monthArr))
+		for index, val := range monthArr {
+			monthIntArr[index] = int32(val)
+		}
+		return data.NewField(columnName, nil, monthIntArr)
+
+	default:
+		return data.NewField(columnName, nil, inputData.Data)
+	}
+}
+
 func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
+	log.DefaultLogger.Info("Simple Table")
 	frame := data.NewFrame("response")
 	kdbTable := res.Data.(kdb.Table)
 	tabData := kdbTable.Data
 
 	for colIndex, columnName := range kdbTable.Columns {
 		log.DefaultLogger.Info(strconv.Itoa(int(tabData[colIndex].Type)))
-		switch {
-		case tabData[colIndex].Type == kdb.K0:
-			stringColumn, err := stringParser(tabData[colIndex])
-			if err != nil {
-				return nil, fmt.Errorf("The following column: %v return this error: %v", columnName, err)
-			}
-			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, stringColumn))
-		case tabData[colIndex].Type == kdb.KC:
-			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, charParser(tabData[colIndex])))
-
-		case tabData[colIndex].Type == kdb.KN:
-			//timespan
-			durArr := tabData[colIndex].Data.([]time.Duration)
-			durIntArr := make([]int64, len(durArr))
-			for i, dur := range durArr {
-				durIntArr[i] = int64(dur)
-			}
-			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, durIntArr))
-
-		case tabData[colIndex].Type == kdb.KT:
-			//Time
-			kdbTimeArr := tabData[colIndex].Data.([]kdb.Time)
-			timeArr := make([]int32, len(kdbTimeArr))
-			for index, t := range kdbTimeArr {
-				hour, min, sec := time.Time(t).Clock()
-				timeArr[index] = int32(hour*3600000 + min*60000 + sec*1000 + time.Time(t).Nanosecond()/1000000)
-
-			}
-			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, timeArr))
-
-		case tabData[colIndex].Type == kdb.UU:
-			//GUID
-			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, guidParser(tabData[colIndex])))
-		case tabData[colIndex].Type == kdb.KU:
-			//Minute
-			minArr := tabData[colIndex].Data.([]kdb.Minute)
-			minTimeArr := make([]int32, len(minArr))
-			for index, entry := range minArr {
-				hour, min, _ := time.Time(entry).Clock()
-				minTimeArr[index] = int32((hour * 60) + min)
-			}
-			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, minTimeArr))
-		case tabData[colIndex].Type == kdb.KV:
-			//Second
-			secArr := tabData[colIndex].Data.([]kdb.Second)
-			secTimeArr := make([]int32, len(secArr))
-			for index, entry := range secArr {
-				hour, min, sec := time.Time(entry).Clock()
-				secTimeArr[index] = int32(sec + (min * 60) + (hour * 3600))
-
-			}
-			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, secTimeArr))
-
-		case tabData[colIndex].Type == kdb.KM:
-			// Month
-			monthArr := tabData[colIndex].Data.([]kdb.Month)
-			monthIntArr := make([]int32, len(monthArr))
-			for index, val := range monthArr {
-				monthIntArr[index] = int32(val)
-			}
-			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, monthIntArr))
-
-		default:
-			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, tabData[colIndex].Data))
-		}
-
+		frame.Fields = append(frame.Fields, parser(tabData[colIndex], columnName))
 	}
 	return frame, nil
 }
-
 func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 	kdbDict := res.Data.(kdb.Dict)
 	if kdbDict.Key.Type != kdb.XT || kdbDict.Value.Type != kdb.XT {
