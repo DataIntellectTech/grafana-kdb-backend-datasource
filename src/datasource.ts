@@ -17,17 +17,19 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
   }
 
   async metricFindQuery(query: MyVariableQuery, options?: any): Promise<any> {
-
+    const templateSrv = getTemplateSrv();
     let timeout = parseInt(query.timeOut, 10)
     const body: any = {
       queries: [
         { datasourceId:this.id,
           orgId: this.id,
-          queryText: query.queryText,
+          queryText: query.queryText ? templateSrv.replace(query.queryText) : '',
           timeOut: timeout,
         }
       ]
     }
+
+
     const backendQuery = getBackendSrv()
         .datasourceRequest({
           url: '/api/ds/query',
