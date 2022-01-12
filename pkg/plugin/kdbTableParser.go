@@ -12,15 +12,6 @@ import (
 	kdb "github.com/sv/kdbgo"
 )
 
-func guidParser(data *kdb.K) []string {
-	uuidArr := data.Data.([]uuid.UUID)
-	guidArr := make([]string, len(uuidArr))
-	for i, entry := range uuidArr {
-		guidArr[i] = entry.String()
-	}
-	return guidArr
-}
-
 func charParser(data *kdb.K) []string {
 	byteArray := make([]string, data.Len())
 	for i := 0; i < data.Len(); i++ {
@@ -74,7 +65,14 @@ func parser(inputData *kdb.K, columnName string) *data.Field {
 
 	case inputData.Type == kdb.UU:
 		//GUID
-		return data.NewField(columnName, nil, guidParser(inputData))
+
+		uuidArr := inputData.Data.([]uuid.UUID)
+		guidArr := make([]string, len(uuidArr))
+		for i, entry := range uuidArr {
+			guidArr[i] = entry.String()
+		}
+
+		return data.NewField(columnName, nil, guidArr)
 
 	case inputData.Type == kdb.KU:
 		//Minute
@@ -130,7 +128,6 @@ func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 	frameArray := make([]*data.Frame, rc)
 	k := kdbDict.Key.Data.(kdb.Table)
 	keyColCount := len(k.Columns)
-
 	for row := 0; row < rc; row++ {
 		keyData := correctedTableIndex(k, row)
 		frameName := parseFrameName(keyData.Value)
@@ -158,16 +155,20 @@ func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 				}
 				dat = projectAtom(KObj.Data, depth)
 			} else {
+				log.DefaultLogger.Info(strconv.Itoa(int(KObj.Type)))
 				switch {
 				case KObj.Type == kdb.KC:
 					// if the column is a key column, this is a string. Otherwise it is a char list
 					if i < keyColCount {
 						dat = projectAtom(KObj.Data, depth)
 					} else {
+
 						dat = charParser(KObj)
 					}
 				case KObj.Type > kdb.K0:
-					dat = KObj.Data
+					frame.Fields = append(frame.Fields, parser(KObj, colName))
+					continue
+
 				case KObj.Type == kdb.K0:
 					stringColumn, err := stringParser(KObj)
 					if err != nil {
@@ -287,7 +288,7 @@ func indexKdbArray(k *kdb.K, i int) interface{} {
 	case k.Type == kdb.KP:
 		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]time.Time)[i]}
 	case k.Type == kdb.KM:
-		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]int32)[i]}
+		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]kdb.Month)[i]}
 	case k.Type == kdb.KD:
 		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]time.Time)[i]}
 	case k.Type == kdb.KZ:
@@ -295,11 +296,11 @@ func indexKdbArray(k *kdb.K, i int) interface{} {
 	case k.Type == kdb.KN:
 		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]time.Duration)[i]}
 	case k.Type == kdb.KU:
-		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]time.Time)[i]}
+		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]kdb.Minute)[i]}
 	case k.Type == kdb.KV:
-		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]time.Time)[i]}
+		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]kdb.Second)[i]}
 	case k.Type == kdb.KT:
-		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]time.Time)[i]}
+		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]kdb.Time)[i]}
 	}
 	return nil
 }
@@ -473,6 +474,42 @@ func projectAtom(a interface{}, d int) interface{} {
 		arr := make([]*time.Time, d)
 		for i := 0; i < d; i++ {
 			arr[i] = v
+		}
+		o = arr
+	case time.Duration:
+		arr := make([]int64, d)
+		for i := 0; i < d; i++ {
+			arr[i] = int64(v)
+		}
+		o = arr
+	case kdb.Minute:
+		arr := make([]int32, d)
+		for i := 0; i < d; i++ {
+			arr[i] = int32(time.Time(v).Sub(time.Time{}) / time.Minute)
+		}
+		o = arr
+	case kdb.Month:
+		arr := make([]int32, d)
+		for i := 0; i < d; i++ {
+			arr[i] = int32(v)
+		}
+		o = arr
+	case kdb.Second:
+		arr := make([]int32, d)
+		for i := 0; i < d; i++ {
+			arr[i] = int32(time.Time(v).Second() + time.Time(v).Minute()*60 + time.Time(v).Hour()*3600)
+		}
+		o = arr
+	case uuid.UUID:
+		arr := make([]string, d)
+		for i := 0; i < d; i++ {
+			arr[i] = v.String()
+		}
+		o = arr
+	case kdb.Time:
+		arr := make([]int32, d)
+		for i := 0; i < d; i++ {
+			arr[i] = int32(time.Time(v).Hour()*3600000 + time.Time(v).Minute()*60000 + time.Time(v).Second()*1000 + time.Time(v).Nanosecond()/1000000)
 		}
 		o = arr
 	default:
