@@ -32,7 +32,7 @@ func stringParser(data *kdb.K) ([]string, error) {
 	return stringArray, nil
 }
 
-func parser(inputData *kdb.K, columnName string) *data.Field {
+func standardColumnParser(inputData *kdb.K) interface{} {
 
 	switch {
 	case inputData.Type == kdb.K0:
@@ -40,9 +40,9 @@ func parser(inputData *kdb.K, columnName string) *data.Field {
 		if err != nil {
 			//return nil, fmt.Errorf("The following column: %v return this error: %v", columnName, err)
 		}
-		return data.NewField(columnName, nil, stringColumn)
+		return stringColumn
 	case inputData.Type == kdb.KC:
-		return data.NewField(columnName, nil, charParser(inputData))
+		return charParser(inputData)
 
 	case inputData.Type == kdb.KN:
 		//timespan
@@ -51,7 +51,7 @@ func parser(inputData *kdb.K, columnName string) *data.Field {
 		for i, dur := range durArr {
 			durIntArr[i] = int64(dur)
 		}
-		return data.NewField(columnName, nil, durIntArr)
+		return durIntArr
 
 	case inputData.Type == kdb.KT:
 		//Time
@@ -61,7 +61,7 @@ func parser(inputData *kdb.K, columnName string) *data.Field {
 			timeArr[index] = int32(time.Time(entry).Hour()*3600000 + time.Time(entry).Minute()*60000 + time.Time(entry).Second()*1000 + time.Time(entry).Nanosecond()/1000000)
 
 		}
-		return data.NewField(columnName, nil, timeArr)
+		return timeArr
 
 	case inputData.Type == kdb.UU:
 		//GUID
@@ -72,7 +72,7 @@ func parser(inputData *kdb.K, columnName string) *data.Field {
 			guidArr[i] = entry.String()
 		}
 
-		return data.NewField(columnName, nil, guidArr)
+		return guidArr
 
 	case inputData.Type == kdb.KU:
 		//Minute
@@ -81,7 +81,7 @@ func parser(inputData *kdb.K, columnName string) *data.Field {
 		for index, entry := range minArr {
 			minTimeArr[index] = int32(time.Time(entry).Minute() + time.Time(entry).Hour()*60)
 		}
-		return data.NewField(columnName, nil, minTimeArr)
+		return minTimeArr
 
 	case inputData.Type == kdb.KV:
 		//Second
@@ -90,7 +90,7 @@ func parser(inputData *kdb.K, columnName string) *data.Field {
 		for index, entry := range secArr {
 			secTimeArr[index] = int32(time.Time(entry).Second() + time.Time(entry).Minute()*60 + time.Time(entry).Hour()*3600)
 		}
-		return data.NewField(columnName, nil, secTimeArr)
+		return secTimeArr
 
 	case inputData.Type == kdb.KM:
 		// Month
@@ -99,10 +99,10 @@ func parser(inputData *kdb.K, columnName string) *data.Field {
 		for index, val := range monthArr {
 			monthIntArr[index] = int32(val)
 		}
-		return data.NewField(columnName, nil, monthIntArr)
+		return monthIntArr
 
 	default:
-		return data.NewField(columnName, nil, inputData.Data)
+		return inputData.Data
 	}
 }
 
@@ -114,7 +114,8 @@ func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 
 	for colIndex, columnName := range kdbTable.Columns {
 		log.DefaultLogger.Info(strconv.Itoa(int(tabData[colIndex].Type)))
-		frame.Fields = append(frame.Fields, parser(tabData[colIndex], columnName))
+		frame.Fields = append(frame.Fields, data.NewField(columnName, nil, standardColumnParser(tabData[colIndex])))
+
 	}
 	return frame, nil
 }
@@ -166,9 +167,7 @@ func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 						dat = charParser(KObj)
 					}
 				case KObj.Type > kdb.K0:
-					frame.Fields = append(frame.Fields, parser(KObj, colName))
-					continue
-
+					dat = standardColumnParser(KObj)
 				case KObj.Type == kdb.K0:
 					stringColumn, err := stringParser(KObj)
 					if err != nil {
