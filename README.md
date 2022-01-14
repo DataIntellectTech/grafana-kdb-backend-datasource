@@ -30,6 +30,8 @@ Below gives instructions for using the plugin
 7. Click save and return to your dashboard
 8. The refresh rate can be set from your dashboard, click refresh, select the drop down menu and set your refresh time.
 
+### Logging
+ToDo
 
 ## Getting started for developers
 
@@ -125,7 +127,7 @@ Next of all set the alert conditions, making sure to select the expression and t
 Plugin will handle static and query variables. It also allows the user to chain querys
 
 #### Static Variables
-These can be entered under the Custom type, they should be in the form of a comma deliminated list - a space isnt needed after the comma. These can then be used in querys in the form: ${variable_name}
+These can be entered under the Custom type using Grafana format, (e.g. comma separated list). Static variables can then be used in queries in the form: ${variable_name}
 
 #### Query Variables
 These can be entered under the Query Type, the query will run upon click away or when update is pressed. The timeout field does not have to be populated. The list of returned variables will be displayed at the bottom. Queries can also take in other variables as well. The usage is the same as static variables ${variable_name}
@@ -135,16 +137,16 @@ These can be entered under the Query Type, the query will run upon click away or
 kdb stores its times in UTC format, it is advised to set the Dashboard to UTC as well. This can be done in Dashboard settings - Timezone
 
 ### Limitations
-ToDo
-
-#### Columns
+Infinities and nulls in Grafana do not share same data type as in kdb+.  An underlying string value representation is displayed rather than the null or infinity value held in kdb+. It is recommended Grafana send users handle null representations as per their data schema, data dictionary.
+  
+### Columns
 The columns must be of constant type - there cannot be mixed lists as columns, (excluding 'string' columns).
 
 #### Grouped Tables
 Grouped tables are handled as follows: each grouping is returned as a frame, the name of the frame is the string representation of the column names seperated by a semicolon.
 
 #### Nulls and Infinities
-The table below displays how nulls, infinities and zeros are handled for each data type:
+The table below displays how nulls, infinities and zeroes are handled for each data type:
 
 | Field  | Short  | Int         | Long                 | Chars       | Symbols     | Timestamps  | Times       | Datetimes   | Timespans   | Months      | Dates       | Minutes     | Seconds     |
 | ------ | ------ | ----------- | -------------------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
