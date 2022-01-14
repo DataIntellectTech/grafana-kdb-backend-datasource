@@ -107,42 +107,44 @@ The data is in a nested structure as follows:
 
 | Dataset                           | Data                                                         |
 | --------------------------------- | ------------------------------------------------------------ |
-| AQUAQ_KDB_BACKEND_GRAF_DATASOURCE | 1F (Version)                                                      |
+| AQUAQ_KDB_BACKEND_GRAF_DATASOURCE | 1F (Version)                                                 |
 | Time                              | Date and Timestamp                                           |
 | OrgID                             | 1                                                            | 
 | Datasource                        | ID, Name, UID, URL, Updated, User                            | 
 | User                              | UserName, UserEmail, USerLogin, UserRole                     |
 | Query                             | RefID, Query, QueryType, MaxDataPoints, Interval, TimeRange  |
-| Timeout                           | 1000 
+| Timeout                           | 1000                                                         |
 
 ### Alerts
-Before creating an alert, create a contact point under alerting -> contact points. Then create a notification policy under Alerting -> notification policy. Your notification policy should follow the form: <Name_of_contact_point> = int ex: kdbDevs=1
+Before creating an alert, create a contact point under alerting -> contact points. Then create a notification policy under Alerting -> notification policy. 
 
 To create an alert on a panel, navigate to the relevant dashboard and choose the edit option from here navigate to the Alert menu. Fill out the relevant Rule name, type and folder. Enter your kdb query and run the queries. You will be able to use expressions to query the data from this query.
-Next of all set the alert conditions, making sure to select the expression and to set the evaluate duration. Finally set the custom label in Alert details, this will be our policy from before (kdbDevs=1)
+Next of all set the alert conditions, making sure to select the expression and to set the evaluate duration. Finally set the custom label in Alert details.
 
-###Variables
+### Variables
 Plugin will handle static and query variables. It also allows the user to chain querys
 
 #### Static Variables
 These can be entered under the Custom type, they should be in the form of a comma deliminated list - a space isnt needed after the comma. These can then be used in querys in the form: ${variable_name}
 
-####Query Variables
+#### Query Variables
 These can be entered under the Query Type, the query will run upon click away or when update is pressed. The timeout field does not have to be populated. The list of returned variables will be displayed at the bottom. Queries can also take in other variables as well. The usage is the same as static variables ${variable_name}
 
-###Timezones
+### Timezones
 
 kdb stores its times in UTC format, it is advised to set the Dashboard to UTC as well. This can be done in Dashboard settings - Timezone
 
-###Limitations
-####Columns
-The columns must be of a single type - they cannot be a mixed
+### Limitations
+ToDo
 
-####Grouped Tables
+#### Columns
+The columns must be of constant type - there cannot be mixed lists as columns, (excluding 'string' columns).
+
+#### Grouped Tables
 Grouped tables are handled as follows: each grouping is returned as a frame, the name of the frame is the string representation of the column names seperated by a semicolon.
 
-####Nulls and Infinits
-The table below displays how nulls infinits and zeros are handled for each data type:
+#### Nulls and Infinities
+The table below displays how nulls, infinities and zeros are handled for each data type:
 
 | Field  | Short  | Int         | Long                 | Chars       | Symbols     | Timestamps  | Times       | Datetimes   | Timespans   | Months      | Dates       | Minutes     | Seconds     |
 | ------ | ------ | ----------- | -------------------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
