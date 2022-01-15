@@ -2,6 +2,8 @@ package plugin
 
 import (
 	"fmt"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,30 +32,93 @@ func stringParser(data *kdb.K) ([]string, error) {
 	return stringArray, nil
 }
 
+func standardColumnParser(inputData *kdb.K) interface{} {
+
+	switch {
+	case inputData.Type == kdb.K0:
+		stringColumn, err := stringParser(inputData)
+		if err != nil {
+			//return nil, fmt.Errorf("The following column: %v return this error: %v", columnName, err)
+		}
+		return stringColumn
+	case inputData.Type == kdb.KC:
+		return charParser(inputData)
+
+	case inputData.Type == kdb.KN:
+		//timespan
+		durArr := inputData.Data.([]time.Duration)
+		durIntArr := make([]int64, len(durArr))
+		for i, dur := range durArr {
+			durIntArr[i] = int64(dur)
+		}
+		return durIntArr
+
+	case inputData.Type == kdb.KT:
+		//Time
+		kdbTimeArr := inputData.Data.([]kdb.Time)
+		timeArr := make([]int32, len(kdbTimeArr))
+		for index, entry := range kdbTimeArr {
+			timeArr[index] = int32(time.Time(entry).Hour()*3600000 + time.Time(entry).Minute()*60000 + time.Time(entry).Second()*1000 + time.Time(entry).Nanosecond()/1000000)
+
+		}
+		return timeArr
+
+	case inputData.Type == kdb.UU:
+		//GUID
+
+		uuidArr := inputData.Data.([]uuid.UUID)
+		guidArr := make([]string, len(uuidArr))
+		for i, entry := range uuidArr {
+			guidArr[i] = entry.String()
+		}
+
+		return guidArr
+
+	case inputData.Type == kdb.KU:
+		//Minute
+		minArr := inputData.Data.([]kdb.Minute)
+		minTimeArr := make([]int32, len(minArr))
+		for index, entry := range minArr {
+			minTimeArr[index] = int32(time.Time(entry).Minute() + time.Time(entry).Hour()*60)
+		}
+		return minTimeArr
+
+	case inputData.Type == kdb.KV:
+		//Second
+		secArr := inputData.Data.([]kdb.Second)
+		secTimeArr := make([]int32, len(secArr))
+		for index, entry := range secArr {
+			secTimeArr[index] = int32(time.Time(entry).Second() + time.Time(entry).Minute()*60 + time.Time(entry).Hour()*3600)
+		}
+		return secTimeArr
+
+	case inputData.Type == kdb.KM:
+		// Month
+		monthArr := inputData.Data.([]kdb.Month)
+		monthIntArr := make([]int32, len(monthArr))
+		for index, val := range monthArr {
+			monthIntArr[index] = int32(val)
+		}
+		return monthIntArr
+
+	default:
+		return inputData.Data
+	}
+}
+
 func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
+	log.DefaultLogger.Info("Simple Table")
 	frame := data.NewFrame("response")
 	kdbTable := res.Data.(kdb.Table)
 	tabData := kdbTable.Data
 
 	for colIndex, columnName := range kdbTable.Columns {
-		//Manual handling of string cols
-		switch {
-		case tabData[colIndex].Type == kdb.K0:
-			stringColumn, err := stringParser(tabData[colIndex])
-			if err != nil {
-				return nil, fmt.Errorf("The following column: %v return this error: %v", columnName, err)
-			}
-			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, stringColumn))
-		case tabData[colIndex].Type == kdb.KC:
-			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, charParser(tabData[colIndex])))
-		default:
-			frame.Fields = append(frame.Fields, data.NewField(columnName, nil, tabData[colIndex].Data))
-		}
+		log.DefaultLogger.Info(strconv.Itoa(int(tabData[colIndex].Type)))
+		frame.Fields = append(frame.Fields, data.NewField(columnName, nil, standardColumnParser(tabData[colIndex])))
 
 	}
 	return frame, nil
 }
-
 func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 	kdbDict := res.Data.(kdb.Dict)
 	if kdbDict.Key.Type != kdb.XT || kdbDict.Value.Type != kdb.XT {
@@ -64,7 +129,6 @@ func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 	frameArray := make([]*data.Frame, rc)
 	k := kdbDict.Key.Data.(kdb.Table)
 	keyColCount := len(k.Columns)
-
 	for row := 0; row < rc; row++ {
 		keyData := correctedTableIndex(k, row)
 		frameName := parseFrameName(keyData.Value)
@@ -92,16 +156,18 @@ func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 				}
 				dat = projectAtom(KObj.Data, depth)
 			} else {
+				log.DefaultLogger.Info(strconv.Itoa(int(KObj.Type)))
 				switch {
 				case KObj.Type == kdb.KC:
 					// if the column is a key column, this is a string. Otherwise it is a char list
 					if i < keyColCount {
 						dat = projectAtom(KObj.Data, depth)
 					} else {
+
 						dat = charParser(KObj)
 					}
 				case KObj.Type > kdb.K0:
-					dat = KObj.Data
+					dat = standardColumnParser(KObj)
 				case KObj.Type == kdb.K0:
 					stringColumn, err := stringParser(KObj)
 					if err != nil {
@@ -221,7 +287,7 @@ func indexKdbArray(k *kdb.K, i int) interface{} {
 	case k.Type == kdb.KP:
 		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]time.Time)[i]}
 	case k.Type == kdb.KM:
-		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]int32)[i]}
+		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]kdb.Month)[i]}
 	case k.Type == kdb.KD:
 		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]time.Time)[i]}
 	case k.Type == kdb.KZ:
@@ -229,11 +295,11 @@ func indexKdbArray(k *kdb.K, i int) interface{} {
 	case k.Type == kdb.KN:
 		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]time.Duration)[i]}
 	case k.Type == kdb.KU:
-		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]time.Time)[i]}
+		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]kdb.Minute)[i]}
 	case k.Type == kdb.KV:
-		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]time.Time)[i]}
+		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]kdb.Second)[i]}
 	case k.Type == kdb.KT:
-		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]time.Time)[i]}
+		return &kdb.K{-k.Type, kdb.NONE, k.Data.([]kdb.Time)[i]}
 	}
 	return nil
 }
@@ -407,6 +473,42 @@ func projectAtom(a interface{}, d int) interface{} {
 		arr := make([]*time.Time, d)
 		for i := 0; i < d; i++ {
 			arr[i] = v
+		}
+		o = arr
+	case time.Duration:
+		arr := make([]int64, d)
+		for i := 0; i < d; i++ {
+			arr[i] = int64(v)
+		}
+		o = arr
+	case kdb.Minute:
+		arr := make([]int32, d)
+		for i := 0; i < d; i++ {
+			arr[i] = int32(time.Time(v).Sub(time.Time{}) / time.Minute)
+		}
+		o = arr
+	case kdb.Month:
+		arr := make([]int32, d)
+		for i := 0; i < d; i++ {
+			arr[i] = int32(v)
+		}
+		o = arr
+	case kdb.Second:
+		arr := make([]int32, d)
+		for i := 0; i < d; i++ {
+			arr[i] = int32(time.Time(v).Second() + time.Time(v).Minute()*60 + time.Time(v).Hour()*3600)
+		}
+		o = arr
+	case uuid.UUID:
+		arr := make([]string, d)
+		for i := 0; i < d; i++ {
+			arr[i] = v.String()
+		}
+		o = arr
+	case kdb.Time:
+		arr := make([]int32, d)
+		for i := 0; i < d; i++ {
+			arr[i] = int32(time.Time(v).Hour()*3600000 + time.Time(v).Minute()*60000 + time.Time(v).Second()*1000 + time.Time(v).Nanosecond()/1000000)
 		}
 		o = arr
 	default:
