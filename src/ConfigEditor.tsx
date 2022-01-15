@@ -1,12 +1,12 @@
 import { defaults } from 'lodash';
 import React, { ChangeEvent, PureComponent, SyntheticEvent, FormEvent } from 'react';
-import {InlineField, LegacyForms} from '@grafana/ui';
+import {InlineField, InlineSwitch, LegacyForms} from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
 import {defaultConfig, MyDataSourceOptions, MySecureJsonData} from './types';
 import {TextArea }  from '@grafana/ui';
 // @ts-ignore
 import { version } from '../package.json';
-const { FormField, SecretFormField, Switch } = LegacyForms;
+const { FormField, SecretFormField } = LegacyForms;
 
 interface Props extends DataSourcePluginOptionsEditorProps<MyDataSourceOptions> {}
 
@@ -366,7 +366,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
           <div className="gf-form">
             <FormField
                 name="TimeoutInputField"
-                label="Timeout"
+                label="Timeout (ms)"
                 labelWidth={7}
                 inputWidth={20}
                 onChange={this.onTimeoutChange}
@@ -378,10 +378,22 @@ export class ConfigEditor extends PureComponent<Props, State> {
 
           {options.jsonData.withTLS && <>{this.renderTLS()}</>}
           <div className="gf-form">
-          <Switch checked={options.jsonData.withTLS} label="TLS Client Auth" onChange={this.onTlsToggle} />
+            <InlineField
+                label="TLS Client Auth"
+                labelWidth={14}>
+              <InlineSwitch checked={options.jsonData.withTLS} onChange={this.onTlsToggle} />
+            </InlineField>
             {options.jsonData.withTLS && <>
-            <Switch checked={options.jsonData.skipVerifyTLS} label="Skip TLS Verify" onChange={this.onSkipTlsToggle} />
-            <Switch checked={options.jsonData.withCACert} label="With CA Cert" onChange={this.onCaCertToggle} />
+              <InlineField
+                  label="Skip TLS Verify"
+                  labelWidth={14}>
+                <InlineSwitch checked={options.jsonData.skipVerifyTLS} onChange={this.onSkipTlsToggle} />
+              </InlineField>
+              <InlineField
+                  label="With CA Cert"
+                  labelWidth={14}>
+                <InlineSwitch checked={options.jsonData.withCACert} onChange={this.onCaCertToggle} />
+              </InlineField>
             </>}
           </div>
 
