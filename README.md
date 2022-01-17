@@ -15,7 +15,7 @@ Below gives instructions for using the plugin
 1. Navigate to settings -> datasources
 2. Click add datasource and navigate to kdb-backend-datasource
 3. Enter the URL and Port, along with the username and password (if required - defaults to "") of your KDB instance.
-4. Enter a timeout value in ms, defaultis 1000ms
+4. Enter a timeout value in ms, default is 1000ms
 5. Click save & test
 6. An alert at the bottom should display: "kdb connected succesfully"
 
