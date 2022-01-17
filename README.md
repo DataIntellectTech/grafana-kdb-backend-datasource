@@ -31,7 +31,21 @@ Below gives instructions for using the plugin
 8. The refresh rate can be set from your dashboard, click refresh, select the drop down menu and set your refresh time.
 
 ### Logging
-ToDo
+The plugin is using Grafana's default logging settings as per Server Admin menu --> Settings, e.g. https://<your_host>:<port>/admin/settings
+   
+This includes Grafana server instance logs at, /var/log/grafana/grafana.log
+   
+The following is the default log.file configuration
+   
+**log.file**
+- daily_rotate	true
+- file_name	/var/log/grafana/grafana.log
+- format	text
+- level	info
+- log_rotate	true
+- max_days	7
+- max_lines	1000000
+- max_size_shift	28
 
 ## Getting started for developers
 
