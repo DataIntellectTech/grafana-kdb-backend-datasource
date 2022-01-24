@@ -2,10 +2,11 @@ package plugin
 
 import (
 	"fmt"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	uuid "github.com/nu7hatch/gouuid"
@@ -160,10 +161,9 @@ func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 				switch {
 				case KObj.Type == kdb.KC:
 					// if the column is a key column, this is a string. Otherwise it is a char list
-					if i < keyColCount {
+					if i < keyColCount || KObj.Len() != depth {
 						dat = projectAtom(KObj.Data, depth)
 					} else {
-
 						dat = charParser(KObj)
 					}
 				case KObj.Type > kdb.K0:
@@ -216,6 +216,9 @@ func getDepth(colArray []*kdb.K) (int, error) {
 	for _, K := range colArray {
 		if K.Type < 0 {
 			aggPresent = true
+			continue
+		}
+		if K.Type == kdb.KC {
 			continue
 		}
 		if d == -1 {
