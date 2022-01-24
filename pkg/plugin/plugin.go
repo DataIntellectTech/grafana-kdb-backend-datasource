@@ -286,6 +286,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 		if err != nil {
 			response.Error = err
 		} else {
+			frame.Name = query.RefID
 			response.Frames = append(response.Frames, frame)
 		}
 	case kdbResponse.Type == kdb.XD:
