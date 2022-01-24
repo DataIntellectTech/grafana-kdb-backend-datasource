@@ -169,10 +169,6 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	log.DefaultLogger.Info("Making signals channel")
 	client.signals = make(chan int)
 
-	// making raw read channel
-	log.DefaultLogger.Info("Making raw response channel")
-	client.rawReadChan = make(chan *kdbRawRead)
-
 	// Open the kdb Handle
 	err = client.OpenConnection()
 	if err != nil {
@@ -220,6 +216,10 @@ func (d *KdbDatasource) openConnection() error {
 	d.KdbHandle = conn
 	d.IsOpen = true
 
+	// making raw read channel
+	log.DefaultLogger.Info("Making raw response channel")
+	d.rawReadChan = make(chan *kdbRawRead)
+
 	// start synchronous handle reader
 	log.DefaultLogger.Info("Beginning handle listener")
 	go d.KdbHandleListener()
@@ -231,8 +231,9 @@ func (d *KdbDatasource) closeConnection() error {
 	err := d.KdbHandle.Close()
 	if err == nil {
 		log.DefaultLogger.Error(fmt.Sprintf("Error closing handle to %s:%v ...", d.Host, d.Port))
-		d.IsOpen = false
 	}
+	d.IsOpen = false
+	close(d.rawReadChan)
 	return err
 }
 

@@ -10,6 +10,8 @@ import (
 	kdb "github.com/sv/kdbgo"
 )
 
+const kdbEOF = "Failed to read message header:"
+
 // wrappers for correct run-time evaluation of KdbHandle pointer and to enable unit testing
 func (d *KdbDatasource) writeMessage(msgtype kdb.ReqType, obj *kdb.K) error {
 	return d.KdbHandle.WriteMessage(msgtype, obj)
@@ -73,6 +75,10 @@ func (d *KdbDatasource) syncQueryRunner() {
 			select {
 			case msg := <-d.rawReadChan:
 				d.syncResChan <- &kdbSyncRes{result: msg.result, err: msg.err, id: query.id}
+				if msg.err != nil && strings.Contains(msg.err.Error(), kdbEOF) {
+					log.DefaultLogger.Info("Closing rawReadChan within syncQueryRunner")
+					close(d.rawReadChan)
+				}
 			case <-time.After(query.timeout):
 				d.syncResChan <- &kdbSyncRes{result: nil, err: fmt.Errorf("Queried timed out after %v", query.timeout), id: query.id}
 				d.CloseConnection()
@@ -82,7 +88,6 @@ func (d *KdbDatasource) syncQueryRunner() {
 }
 
 func (d *KdbDatasource) kdbHandleListener() {
-	kdbEOF := "Failed to read message header:"
 	for {
 		res, _, err := d.ReadConnection()
 		if err != nil {
