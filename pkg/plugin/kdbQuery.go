@@ -31,10 +31,13 @@ func (d *KdbDatasource) getKdbSyncQueryId() uint32 {
 }
 
 func (d *KdbDatasource) runKdbQuerySync(query *kdb.K, timeout time.Duration) (*kdb.K, error) {
-	queryObj := &kdbSyncQuery{query: query, id: d.getKdbSyncQueryId(), timeout: timeout}
+	id := d.getKdbSyncQueryId()
+	queryObj := &kdbSyncQuery{query: query, id: id, timeout: timeout}
+	log.DefaultLogger.Info(fmt.Sprintf("SENDING QUERY INTO SYNCQUEUE: %v", id))
 	d.syncQueue <- queryObj
 	for {
 		res := <-d.syncResChan
+		log.DefaultLogger.Info(fmt.Sprintf("RECEIVED RESPONSE FROM SYNCRESCHAN: %v", id))
 		if res.id != queryObj.id {
 			continue
 		}
@@ -44,6 +47,12 @@ func (d *KdbDatasource) runKdbQuerySync(query *kdb.K, timeout time.Duration) (*k
 
 func (d *KdbDatasource) syncQueryRunner() {
 	log.DefaultLogger.Info("Beginning synchronous query listener")
+	var err error
+	// Open the kdb Handle
+	err = d.OpenConnection()
+	if err != nil {
+		log.DefaultLogger.Error(fmt.Sprintf("Error opening handle to kdb+ process when creating datasource: %v", err))
+	}
 	for {
 		select {
 		case signal := <-d.signals:
@@ -52,14 +61,13 @@ func (d *KdbDatasource) syncQueryRunner() {
 				return
 			}
 		case query := <-d.syncQueue:
-			var err error
 			// If handle isn't open, attempt to open
 			if !d.IsOpen {
 				log.DefaultLogger.Info("Handle not open, opening new handle...")
 				err = d.OpenConnection()
 				// Return error if unable to open handle
 				if err != nil {
-					log.DefaultLogger.Info("Unable to open handle on-demand in syncQueryRunner")
+					log.DefaultLogger.Info(fmt.Sprintf("Unable to open handle on-demand in syncQueryRunner: %v", err))
 					d.syncResChan <- &kdbSyncRes{result: nil, err: err, id: query.id}
 					continue
 				}
@@ -77,7 +85,7 @@ func (d *KdbDatasource) syncQueryRunner() {
 				d.syncResChan <- &kdbSyncRes{result: msg.result, err: msg.err, id: query.id}
 				if msg.err != nil && strings.Contains(msg.err.Error(), kdbEOF) {
 					log.DefaultLogger.Info("Closing rawReadChan within syncQueryRunner")
-					close(d.rawReadChan)
+					d.CloseConnection()
 				}
 			case <-time.After(query.timeout):
 				d.syncResChan <- &kdbSyncRes{result: nil, err: fmt.Errorf("Queried timed out after %v", query.timeout), id: query.id}
@@ -89,13 +97,20 @@ func (d *KdbDatasource) syncQueryRunner() {
 
 func (d *KdbDatasource) kdbHandleListener() {
 	for {
+		if !d.IsOpen {
+			log.DefaultLogger.Info("Handle not open, kdbHandleListener returning...")
+			return
+		}
 		res, _, err := d.ReadConnection()
 		if err != nil {
 			log.DefaultLogger.Info(err.Error())
 			if strings.Contains(err.Error(), kdbEOF) {
 				log.DefaultLogger.Info("Handle read error, publishing error and returning from kdbHandleListener")
-				d.IsOpen = false
-				d.rawReadChan <- &kdbRawRead{result: res, err: err}
+				if d.IsOpen {
+					log.DefaultLogger.Info("d.IsOpen inside kdbHandleListener, publishing read error to kdbRawRead channel")
+					d.IsOpen = false
+					d.rawReadChan <- &kdbRawRead{result: res, err: err}
+				}
 				return
 			}
 		}
