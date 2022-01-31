@@ -169,16 +169,6 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	log.DefaultLogger.Info("Making signals channel")
 	client.signals = make(chan int)
 
-	// making raw read channel
-	log.DefaultLogger.Info("Making raw response channel")
-	client.rawReadChan = make(chan *kdbRawRead)
-
-	// Open the kdb Handle
-	err = client.OpenConnection()
-	if err != nil {
-		log.DefaultLogger.Error(fmt.Sprintf("Error opening handle to kdb+ process when creating datasource: %v", err))
-	}
-
 	// start synchronous query listener
 	go client.syncQueryRunner()
 
@@ -220,6 +210,10 @@ func (d *KdbDatasource) openConnection() error {
 	d.KdbHandle = conn
 	d.IsOpen = true
 
+	// making raw read channel
+	log.DefaultLogger.Info("Making raw response channel")
+	d.rawReadChan = make(chan *kdbRawRead)
+
 	// start synchronous handle reader
 	log.DefaultLogger.Info("Beginning handle listener")
 	go d.KdbHandleListener()
@@ -227,12 +221,18 @@ func (d *KdbDatasource) openConnection() error {
 }
 
 func (d *KdbDatasource) closeConnection() error {
+	if !d.IsOpen {
+		log.DefaultLogger.Info(fmt.Sprintf("Connection to %s:%v already closed (hint: potentially closed at remote end?)", d.Host, d.Port))
+		close(d.rawReadChan)
+		return nil
+	}
 	log.DefaultLogger.Info(fmt.Sprintf("Closing connection to %s:%v ...", d.Host, d.Port))
 	err := d.KdbHandle.Close()
-	if err == nil {
+	if err != nil {
 		log.DefaultLogger.Error(fmt.Sprintf("Error closing handle to %s:%v ...", d.Host, d.Port))
-		d.IsOpen = false
 	}
+	d.IsOpen = false
+	close(d.rawReadChan)
 	return err
 }
 
@@ -243,7 +243,7 @@ func (d *KdbDatasource) QueryData(ctx context.Context, req *backend.QueryDataReq
 		res := d.query(ctx, req.PluginContext, q)
 		response.Responses[q.RefID] = res
 	}
-
+	log.DefaultLogger.Info(fmt.Sprintf("RETURNING TOP LEVEL OBJECT"))
 	return response, nil
 }
 
@@ -251,6 +251,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	var MyQuery QueryModel
 	response := backend.DataResponse{}
 	err := json.Unmarshal(query.JSON, &MyQuery)
+	log.DefaultLogger.Info(fmt.Sprintf("QUERY INPUT: %v", query.RefID))
 	if err != nil {
 		log.DefaultLogger.Error("Error decoding query and field -%s", err.Error())
 		response.Error = err
@@ -285,6 +286,7 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 		if err != nil {
 			response.Error = err
 		} else {
+			frame.Name = query.RefID
 			response.Frames = append(response.Frames, frame)
 		}
 	case kdbResponse.Type == kdb.XD:
