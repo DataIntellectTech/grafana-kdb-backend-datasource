@@ -1,0 +1,2 @@
+host,port,user,pass,autoStart
+localhost,6767,user,pass,1

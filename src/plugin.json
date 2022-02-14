@@ -1,32 +1,33 @@
 {
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/developers/plugins/plugin.schema.json",
   "type": "datasource",
-  "name": "kdb-backend-datasource",
-  "id": "aqua-q-kdb-backend-datasource",
+  "name": "kdb+ Backend",
+  "id": "aquaqanalytics-kdbbackend-datasource",
   "metrics": true,
   "backend": true,
-  "executable": "gpx_kdb-backend-datasource",
+  "executable": "gpx_kdbbackend-datasource",
+  "alerting": true,
   "info": {
-    "description": "KBD Datasource",
+    "description": "AquaQ Analytics' backend adaptor for KX Systems' kdb+ database",
     "author": {
-      "name": "George Marshall, Mather Hamill, Paul Teague, Daniel Gorrod, James Bradley",
+      "name": "AquaQ",
       "url": "https://www.aquaq.co.uk"
     },
     "keywords": [
-      "kbd"
+      "kdb+"
     ],
     "logos": {
-      "small": "img/logo.svg",
-      "large": "img/logo.svg"
+      "small": "img/AquaQ_Logo.png",
+      "large": "img/AquaQ_Logo.png"
     },
     "links": [
       {
         "name": "Website",
-        "url": "https://github.com/grafana/grafana-starter-datasource-backend"
+        "url": "https://github.com/AquaQAnalytics/grafana-kdb-backend-datasource"
       },
       {
         "name": "License",
-        "url": "https://github.com/grafana/grafana-starter-datasource-backend/blob/master/LICENSE"
+        "url": "https://github.com/AquaQAnalytics/grafana-kdb-backend-datasource/blob/master/LICENSE"
       }
     ],
     "screenshots": [],
@@ -34,7 +35,7 @@
     "updated": "%TODAY%"
   },
   "dependencies": {
-    "grafanaDependency": ">=7.0.0",
+    "grafanaDependency": ">=8.0.0",
     "plugins": []
   }
 }

@@ -3,9 +3,9 @@ package main
 import (
 	"os"
 
+	"github.com/AquaQAnalytics/grafana-kdb-backend-datasource/pkg/plugin"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
-	"github.com/grafana/grafana-starter-datasource-backend/pkg/plugin"
 )
 
 func main() {
@@ -17,7 +17,8 @@ func main() {
 	// from Grafana to create different instances of SampleDatasource (per datasource
 	// ID). When datasource configuration changed Dispose method will be called and
 	// new datasource instance created using NewSampleDatasource factory.
-	if err := datasource.Manage("myorgid-simple-backend-datasource", plugin.NewSampleDatasource, datasource.ManageOpts{}); err != nil {
+	log.DefaultLogger.Info("AquaQ kdb+ data-source initialising")
+	if err := datasource.Manage("aqua-q-kdb-backend-datasource", plugin.NewKdbDatasource, datasource.ManageOpts{}); err != nil {
 		log.DefaultLogger.Error(err.Error())
 		os.Exit(1)
 	}
