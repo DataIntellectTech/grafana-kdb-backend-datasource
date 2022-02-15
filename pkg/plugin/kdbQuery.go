@@ -33,11 +33,9 @@ func (d *KdbDatasource) getKdbSyncQueryId() uint32 {
 func (d *KdbDatasource) runKdbQuerySync(query *kdb.K, timeout time.Duration) (*kdb.K, error) {
 	id := d.getKdbSyncQueryId()
 	queryObj := &kdbSyncQuery{query: query, id: id, timeout: timeout}
-	log.DefaultLogger.Info(fmt.Sprintf("SENDING QUERY INTO SYNCQUEUE: %v", id))
 	d.syncQueue <- queryObj
 	for {
 		res := <-d.syncResChan
-		log.DefaultLogger.Info(fmt.Sprintf("RECEIVED RESPONSE FROM SYNCRESCHAN: %v", id))
 		if res.id != queryObj.id {
 			continue
 		}
