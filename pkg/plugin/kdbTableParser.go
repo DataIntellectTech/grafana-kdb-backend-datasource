@@ -108,7 +108,6 @@ func standardColumnParser(inputData *kdb.K) interface{} {
 }
 
 func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
-	log.DefaultLogger.Info("Simple Table")
 	frame := data.NewFrame("response")
 	kdbTable := res.Data.(kdb.Table)
 	tabData := kdbTable.Data
@@ -157,7 +156,6 @@ func ParseGroupedKdbTable(res *kdb.K, includeKeys bool) ([]*data.Frame, error) {
 				}
 				dat = projectAtom(KObj.Data, depth)
 			} else {
-				log.DefaultLogger.Info(strconv.Itoa(int(KObj.Type)))
 				switch {
 				case KObj.Type == kdb.KC:
 					// if the column is a key column, this is a string. Otherwise it is a char list
