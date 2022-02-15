@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -243,7 +244,6 @@ func (d *KdbDatasource) QueryData(ctx context.Context, req *backend.QueryDataReq
 		res := d.query(ctx, req.PluginContext, q)
 		response.Responses[q.RefID] = res
 	}
-	log.DefaultLogger.Info(fmt.Sprintf("RETURNING TOP LEVEL OBJECT"))
 	return response, nil
 }
 
@@ -251,7 +251,6 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 	var MyQuery QueryModel
 	response := backend.DataResponse{}
 	err := json.Unmarshal(query.JSON, &MyQuery)
-	log.DefaultLogger.Info(fmt.Sprintf("QUERY INPUT: %v", query.RefID))
 	if err != nil {
 		log.DefaultLogger.Error("Error decoding query and field -%s", err.Error())
 		response.Error = err
@@ -323,7 +322,6 @@ func (d *KdbDatasource) query(_ context.Context, pCtx backend.PluginContext, que
 }
 
 func (d *KdbDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
-	log.DefaultLogger.Info("CheckHealth called", "request", req)
 	userDict := buildUserKdbDict(req.PluginContext.User)
 	datasourceDict := buildDatasourceKdbDict(req.PluginContext.DataSourceInstanceSettings)
 	k := kdb.SymbolV([]string{"AQUAQ_KDB_BACKEND_GRAF_DATASOURCE", "Time", "OrgID", "Datasource", "User", "Query", "Timeout"})
@@ -339,7 +337,11 @@ func (d *KdbDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthR
 	test, err := d.RunKdbQuerySync(kdb.NewList(kdb.Atom(kdb.KC, "{[x] value x[`Query;`Query]}"), kdb.NewDict(k, v)), d.DialTimeout)
 	if err != nil {
 		log.DefaultLogger.Error("CheckHealth error: %v", err)
-		return &backend.CheckHealthResult{Status: backend.HealthStatusError, Message: fmt.Sprintf("Error querying kdb+ process: %v", err)}, nil
+		emsg := fmt.Sprintf("Error querying kdb+ process: %v", err)
+		if err == io.EOF {
+			emsg += " (hint: potential authentication error)"
+		}
+		return &backend.CheckHealthResult{Status: backend.HealthStatusError, Message: emsg}, nil
 	}
 	var status = backend.HealthStatusUnknown
 	var message = ""
