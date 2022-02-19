@@ -59,25 +59,64 @@ If the `timestamp` being referenced only requires accuracy to a single second, t
 ``("P"$"${__from:date:seconds}")``
 
 ### Query Variables
-These can be entered under the `Query` variable type. The query will run upon click-away or when the `Update` button is pressed. The timeout field does not have to be populated. The list of returned variables will be displayed at the bottom. Queries can also take in other variables as well. The usage is the same as static variables ${variable_name}
+These can be entered under the `Query` variable type. These variables run a query against the target datasource before the panel queries are run, and from this meta-query builds a variable/list of variables. The query will run when the `Update` button is pressed. There is an optional `Timeout` field which if not defined will default to `10 000` ms. The list of returned variables will be displayed at the bottom of this page after the list is updated. 
+
+Query variables can also take in other variables as part of the query which they run (sometimes called `Chained` variables). The format for this is the same as static & multi-value variables (`${variable_name}`)
 
 ## Security
-By default we pass an empty "" string for both the username and password, these can be overridden in the datasource settings.
-TLS is also supported - enable with the TLS Client Auth switch. Enter the client TLS Key and client TLS Cert into the fields provided. To skip server vertification of the TLS certificate use the Skip TLS Verify switch. A custom Certificate Authority Certificate can be used if the `With CA Cert` switch is enabled - use if the kdb+ datasource is running a custom-signed certificate.
+By default we pass an empty `""` string for both the username and password, these can be overridden in the datasource settings.
+TLS is also supported - enable with the `TLS Client Auth` switch. Enter the client TLS key and client TLS cert into the fields provided. To skip server vertification of the TLS certificate use the `Skip TLS Verify` switch. A custom Certificate Authority certificate can be used if the `With CA Cert` switch is enabled - use if the kdb+ datasource is running a custom-signed certificate.
 
 ## kdb+
-The queries are passed to kdb+ as a two item list in the form, the query is excuted as follows: ``{[x] value x[`Query;`Query]}``.
-The data is in a nested structure as follows:
+The queries are passed to kdb+ as a two item synchronous query in the following kdb+ form:
 
-| Dataset                           | Data                                                         |
+``({[x] value x[`Query;`Query]};**QUERYDATA**)``
+
+The `**QUERYDATA**` is a dictionary (kdb+ type `99`) with a nested structure as follows:
+
+| Key                               | Value (`kdb+ type`)                                          |
 | --------------------------------- | ------------------------------------------------------------ |
-| AQUAQ_KDB_BACKEND_GRAF_DATASOURCE | 1f (Version)                                                 |
-| Time                              | Date and Timestamp                                           |
-| OrgID                             | Grafana Organisation ID                                      | 
-| Datasource                        | ID, Name, UID, URL, Updated, User                            | 
-| User                              | UserName, UserEmail, UserLogin, UserRole                     |
-| Query                             | RefID, Query, QueryType, MaxDataPoints, Interval, TimeRange  |
-| Timeout                           | The query's grafana-side timeout duration                    |
+| AQUAQ_KDB_BACKEND_GRAF_DATASOURCE | Plugin Version (`float atom`)                                |
+| Time                              | Query Timestamp (`timestamp atom`)                           |
+| OrgID                             | Grafana Organisation ID (`long atom`)                        | 
+| Datasource                        | **Datasource Info Object** (`dictionary`)                    | 
+| User                              | **User Info Object** (`dictionary`)                          |
+| Query                             | **Query Info Object** (`dictionary`)                         |
+| Timeout                           | Grafana-side timeout duration in ms (`long atom`)            |
+
+### **Datasource Info Object**
+
+| Key | Value (`kdb+ type`) |
+|-----|---------------------|
+| ID | Datasource ID assigned by the Grafana instance (`long atom`) |
+| Name | Name of the datasource as assigned by the user (`char list`) |
+| UID | Datasource UID assigned by the Grafana instance (`char list`) |
+| Updated | Timestamp of when the datasource was last updated (`timestamp atom`) |
+| URL | URL of the datasource (?) (`char list`) | 
+| User | `UserName` of User who created the datasource (`char list`)
+
+
+### **User Info Object**
+
+| Key | Value (`kdb+ type`) |
+| ----|-------|
+| UserName | User's Grafana *name* (not login username) (`char list`)|
+| UserEmail | User's Grafana email address (`char list`)|
+| UserLogin | User's Grafana login username (`char list`)|
+| UserRole  | User's Grafana role (`char list`)|
+
+### **Query Info Object**
+
+**N.B. The `RefID`, `MaxDataPoints`, `Interval` and `TimeRange` keys are not present in `HEALTHCHECK` type queries.**
+
+| Key | Value (`kdb+ type`) |
+|-----|---------------------|
+| RefID | Ref ID of query (`char list`) |
+| Query | Query string which is evaluated (`char list`) |
+| QueryType | Query *type* (`HEALTHCHECK` or `QUERY`) (`symbol atom`) |
+| MaxDataPoints | Panel's defined max data-points (currently unused) (`long atom`)|
+| Interval | Panel's defined interval (currently unused) (`long atom`) |
+| TimeRange | `__from` and `__to` time range of query (`2 item timestamp list`) |
 
 ## Alerts
 Before creating an alert, create a contact point under alerting -> contact points. Then create a notification policy under Alerting -> notification policy.
