@@ -38,7 +38,7 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
           let parsedResponse = toDataQueryResponse(response)
           let responseValues: any[] = []
           for (let frame in parsedResponse.data) {
-            responseValues = responseValues.concat(parsedResponse.data[frame].fields[0].values.buffer.map((x: any) => { return {text: x} }))
+            responseValues = responseValues.concat(parsedResponse.data[frame].fields[0].values.toArray().map((x: any) => { return {text: x} }))
             }
           return responseValues
         }).catch(err => {
