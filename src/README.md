@@ -1,14 +1,26 @@
 # Grafana  KDB+ Backend Datasource
 
-[![Build](https://github.com/grafana/grafana-starter-datasource-backend/workflows/CI/badge.svg)](https://github.com/grafana/grafana-datasource-backend/actions?query=workflow%3A%22CI%22)
-
 ## What is KDB+ Backend Datasource?
 
-KDB+ Backend Datasource is a plugin that adds the ability to query KDB+ from Grafana. It also enables the use of alerting on the data. It supports the use of varibles in the dashboard.
+AquaQ's kdb+ Backend Datasource is a plugin that adds the ability to query kdb+ from Grafana. It supports a wide-range of Grafana's core features including static/query variables, alerting and support for Grafana's `query` API.
 
-## Getting started for users
+## Contents
 
-Below gives instructions for using the plugin
+1. [Getting started for users](#gettingstarted)
+2. [Variables](#variables)
+   1. [Static & Multi-Value Variables](#variables-static)
+   2. [Temporal Variables](#variables-temporal)
+   3. [Query & Chained Variables](#variables-query)
+3. [Security](#security)
+4. [kdb+ Queries](#kdb)
+5. [Alerts](#alerts)
+6. [Timezones](#timezones)
+7. [Restrictions](#restrictions)
+   1. [Columns](#restrictions-columns)
+   2. [Grouped Table Handling](#restrictions-grouped)
+   3. [Nulls and Infinities](#restrictions-null)
+
+## Getting started for users <a name="gettingstarted"></a>
 
 ### Adding a data source
 
@@ -29,10 +41,10 @@ Below gives instructions for using the plugin
 6. Click the `Go back (Esc)` button in the top-left of the page to exit the query editor and return to the dashboard.
 7. The dashboard can be saved with the `Save dashboard` button in the top right. If required, an automated refresh-rate can be set for the dashboard, click the drop-down menu next to the `Refresh dashboard` button in the top-right and set your desired refresh-rate. Custom refresh-rates can be added in `Dashboard settings` .
 
-## Variables
+## Variables <a name="variables"></a>
 This plugin can handle static and query variables. It also allows the user to chain queries.
 
-### Static & Multi-Value Variables
+### Static & Multi-Value Variables <a name="variables-static"></a>
 These can be entered under the `Custom` variable type using Grafana's standard format, (i.e. comma separated list). Static variables can then be used in queries in the form: 
 
 `${variable_name}`
@@ -41,7 +53,7 @@ If using `Multi-value` variables where more than one value can be selected at a 
 
 ``select from trade where exchange in `$"," vs "${multi_variable_name:csv}"``
 
-### Temporal Variables
+### Temporal Variables <a name="variables-temporal"></a>
 Temporal variables (e.g. `${__from}` , `${__to}` etc) are injected by Grafana as the number of ***miliseconds*** since the Unix epoch (e.g. `1594671549254` corresponds to `Jul 13 2020 20:19:09`). To use temporal variables in kdb+ we need to manipulate these to match kdb+'s accepted formats.
 
 This can be done by adjusting from *miliseconds* to *seconds* by dividing by 1000, converting to a decimal string with [`.Q.f`](https://code.kx.com/q/ref/dotq/#qf-format) and then [`tokking`](https://code.kx.com/q/ref/tok/) to a timestamp: 
@@ -58,17 +70,19 @@ If the `timestamp` being referenced only requires accuracy to a single second, t
 
 ``("P"$"${__from:date:seconds}")``
 
-### Query Variables
-These can be entered under the `Query` variable type. These variables run a query against the target datasource before the panel queries are run, and from this meta-query builds a variable/list of variables. The query will run when the `Update` button is pressed. There is an optional `Timeout` field which if not defined will default to `10 000` ms. The list of returned variables will be displayed at the bottom of this page after the list is updated. 
+### Query & Chained Variables <a name="variables-query"></a>
+These can be entered under the `Query` variable type. These variables run a query against the target datasource before the panel queries are run, and from this meta-query Grafana builds a variable/list of variables. The input query must return a `flat table` (see [Restrictions](#restrictions)) from which the first column will be used to generate variables. In older versions of Grafana the output may be required to be either `strings` or `symbols` (in newer Grafana versions numeric datatypes are also supported). 
+
+There is an optional `Timeout` field which if not defined will default to `10 000` ms. A preview of returned variables will be displayed at the bottom of this page after the variable has been updated by pressing the `Update` button.
 
 Query variables can also take in other variables as part of the query which they run (sometimes called `Chained` variables). The format for this is the same as static & multi-value variables (`${variable_name}`)
 
-## Security
+## Security <a name="security"></a>
 By default we pass an empty `""` string for both the username and password, these can be overridden in the datasource settings.
 TLS is also supported - enable with the `TLS Client Auth` switch. Enter the client TLS key and client TLS cert into the fields provided. To skip server vertification of the TLS certificate use the `Skip TLS Verify` switch. A custom Certificate Authority certificate can be used if the `With CA Cert` switch is enabled - use if the kdb+ datasource is running a custom-signed certificate.
 
-## kdb+
-The queries are passed to kdb+ as a two item synchronous query in the following kdb+ form:
+## kdb+ Queries <a name="kdb"></a>
+The queries are passed to kdb+ as a two item synchronous query (will be evaluated by `.z.pg`) in the following kdb+ form:
 
 ``({[x] value x[`Query;`Query]};**QUERYDATA**)``
 
@@ -118,26 +132,28 @@ The `**QUERYDATA**` is a dictionary (kdb+ type `99`) with a nested structure as 
 | Interval | Panel's defined interval (currently unused) (`long atom`) |
 | TimeRange | `__from` and `__to` time range of query (`2 item timestamp list`) |
 
-## Alerts
+## Alerts <a name="alerts"></a>
 Before creating an alert, create a contact point under alerting -> contact points. Then create a notification policy under Alerting -> notification policy.
 
 To create an alert on a panel, navigate to the relevant dashboard and choose the edit option from here navigate to the Alert menu. Fill out the relevant Rule name, type and folder. Enter your kdb+ query and run the queries. You will be able to use expressions to query the data from this query.
 Next of all set the alert conditions, making sure to select the expression and to set the evaluate duration. Finally set the custom label in Alert details.
 
-## Timezones
+## Timezones <a name="timezones"></a>
 
-kdb+ stores its times in UTC format, it is advised to set the Dashboard to UTC as well. This can be done in Dashboard settings - Timezone
+kdb+ stores its timestamps and datetimes in a time-zone agnostic form; these will be interpreted by Grafana as having no time-zone offset (UTC), therefore we advise users to set the time-zone of any dashboards using this plugin to UTC. This can be done in `Dashboard settings - Time options - Timezone`.
 
-## Limitations
+## Restrictions <a name="restrictions"></a>
+All queries must return either a `flat table` (kdb+ datatype 98) or a `grouped table` (kdb+ datatype 99 where `key` and `value` of the dictionary are both congruent tables). If aggregation is used alongside grouping for `grouped tables` then any aggregated columns will be [projected](https://code.kx.com/q/basics/application/#projection) to the same length as the rest of the data-frame.
+
 Infinities and nulls in Grafana do not share same data type as in kdb+.  An underlying string value representation is displayed rather than the null or infinity value held in kdb+. It is recommended Grafana send users handle null representations as per their data schema, data dictionary.
 
-### Columns
-The columns must be of constant type - there cannot be mixed lists as columns, (excluding 'string' columns).
+### Columns <a name="restrictions-columns"></a>
+The columns must be a single, constant datatype - there cannot be mixed lists or nested lists as columns (excluding `string` columns and grouped entries, see [Grouped Tables Handling](#restrictions-grouped) below).
 
-#### Grouped Tables
-Grouped tables are handled as follows: each grouping is returned as a frame, the name of the frame is the string representation of the column names seperated by a semicolon.
+### Grouped Tables Handling <a name="restrictions-grouped"></a>
+If the query evaluated returns a grouped table to Grafana, then each grouping will be returned by Grafana as a seperate frame. The name of each frame is a string representation of the key of each grouping (semicolon seperated if multiple keys are present).
 
-#### Nulls and Infinities
+### Nulls and Infinities <a name="restrictions-nulls"></a>
 The table below displays how nulls, infinities and zeroes are handled for each data type:
 
 | Field  | Short  | Int         | Long                 | Chars       | Symbols     | Timestamps  | Times       | Datetimes   | Timespans   | Months      | Dates       | Minutes     | Seconds     |
