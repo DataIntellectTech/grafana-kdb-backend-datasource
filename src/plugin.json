@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/developers/plugins/plugin.schema.json",
   "type": "datasource",
-  "name": "kdb+ Backend",
+  "name": "kdb+",
   "id": "aquaqanalytics-kdbbackend-datasource",
   "metrics": true,
   "backend": true,
@@ -35,7 +35,7 @@
     "updated": "%TODAY%"
   },
   "dependencies": {
-    "grafanaDependency": ">=8.0.0",
+    "grafanaDependency": ">=7.4.0",
     "plugins": []
   }
 }
