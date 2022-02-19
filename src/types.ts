@@ -18,14 +18,12 @@ export interface MyDataSourceOptions extends DataSourceJsonData {
   withTLS: boolean;
   skipVerifyTLS: boolean;
   withCACert: boolean;
-
 }
 
 export const defaultConfig: Partial<MyDataSourceOptions> = {
   withTLS: false,
   skipVerifyTLS: false,
   withCACert: false,
-
 };
 
 /**

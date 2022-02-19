@@ -2,11 +2,8 @@ package plugin
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
-
-	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	uuid "github.com/nu7hatch/gouuid"
@@ -113,7 +110,6 @@ func ParseSimpleKdbTable(res *kdb.K) (*data.Frame, error) {
 	tabData := kdbTable.Data
 
 	for colIndex, columnName := range kdbTable.Columns {
-		log.DefaultLogger.Info(strconv.Itoa(int(tabData[colIndex].Type)))
 		frame.Fields = append(frame.Fields, data.NewField(columnName, nil, standardColumnParser(tabData[colIndex])))
 
 	}
