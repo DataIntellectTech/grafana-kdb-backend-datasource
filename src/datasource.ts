@@ -1,5 +1,5 @@
 import { DataSourceInstanceSettings } from '@grafana/data';
-import { DataSourceWithBackend, getBackendSrv, getTemplateSrv } from '@grafana/runtime';
+import { DataSourceWithBackend, getBackendSrv, getTemplateSrv, toDataQueryResponse } from '@grafana/runtime';
 import {MyDataSourceOptions, MyQuery, MyVariableQuery} from './types';
 
 
@@ -29,28 +29,23 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
       ]
     }
 
-
     const backendQuery = getBackendSrv()
-        .datasourceRequest({
+      .datasourceRequest({
           url: '/api/ds/query',
           method: 'POST',
           data: body,
         }).then((response: any) => {
-          let values = []
-          for (let key in response.data.results){
-            for (let result in response.data.results[key].frames){
-              for (let col in response.data.results[key].frames[result].data.values[0]) {
-                values.push({text: response.data.results[key].frames[result].data.values[0][col]})
-              }
+          let parsedResponse = toDataQueryResponse(response)
+          let responseValues: any[] = []
+          for (let frame in parsedResponse.data) {
+            responseValues = responseValues.concat(parsedResponse.data[frame].fields[0].values.buffer.map((x: any) => { return {text: x} }))
             }
-          }
-          return values
-        }).catch(err =>{
+          return responseValues
+        }).catch(err => {
           console.log(err)
           err.isHandled = true; // Avoid extra popup warning
           return ({ text:"ERROR"})
         });
     return backendQuery
-
   }
 }
