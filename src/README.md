@@ -24,12 +24,12 @@ AquaQ's kdb+ Backend Datasource is a plugin that adds the ability to query kdb+ 
 
 ### Adding a data source
 
-1. Navigate to settings -> datasources
-2. Click add datasource and navigate to kdb-backend-datasource
+1. Navigate to settings -> datasources.
+2. Click add datasource and navigate to kdb-backend-datasource.
 3. Enter the URL and Port, along with the username and password of your KDB+ instance (if required - if not supplied these will default to `""`).
-4. Enter a timeout value (in ms), default is `1000` miliseconds
-5. Click save & test
-6. An alert at the bottom should display: "kdb+ connected succesfully"
+4. Enter a timeout value (in ms), default is `1000` miliseconds.
+5. Click save & test.
+6. An alert at the bottom should display: `kdb+ connected succesfully`.
 
 ### Creating a dashboard
 
