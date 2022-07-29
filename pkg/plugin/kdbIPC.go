@@ -5,7 +5,7 @@ import (
 )
 
 func (d *KdbDatasource) setupKdbConnectionHandlers() {
-	log.DefaultLogger.Info("Setting kdb+ connection handlers...")
+	log.DefaultLogger.Debug("Setting kdb+ connection handlers...")
 	d.KdbHandleListener = d.kdbHandleListener
 	d.RunKdbQuerySync = d.runKdbQuerySync
 	d.OpenConnection = d.openConnection
