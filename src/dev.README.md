@@ -62,4 +62,4 @@ Below gives instructions for building the plugin in both development mode and pr
 2. Create a duplicate of sample.ini renaming it to custom.ini (or update your existing custom.ini)
 3. Open custom.ini in your favorite editor
 4. Uncomment the "plugin" parameter and set it to the directory containing your plugin, This does not need to be altered if you are installing the plugin in the default location
-5. Uncomment and set "allow_loading_unsigned_plugins=aqua-q-kdb-backend-datasource"
+5. Uncomment and set "allow_loading_unsigned_plugins=aquaqanalytics-kdbbackend-datasource"
