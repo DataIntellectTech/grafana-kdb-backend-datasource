@@ -93,7 +93,7 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		client.user = username
 	} else {
 		client.user = ""
-		log.DefaultLogger.Info("No username provided; using default")
+		log.DefaultLogger.Debug("No username provided; using default")
 
 	}
 
@@ -102,15 +102,15 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		client.pass = pass
 	} else {
 		client.pass = ""
-		log.DefaultLogger.Info("No password provided; using default")
+		log.DefaultLogger.Debug("No password provided; using default")
 	}
 
 	if client.WithTls {
 		tlsServerConfig := new(tls.Config)
-		log.DefaultLogger.Info("TLS enabled for new kdb datasource, creating tls config...")
+		log.DefaultLogger.Debug("TLS enabled for new kdb datasource, creating tls config...")
 		tlsCertificate, certOk := settings.DecryptedSecureJSONData["tlsCertificate"]
 		if !certOk {
-			log.DefaultLogger.Info("Error decrypting TLS Cert or no TLS Cert provided")
+			log.DefaultLogger.Debug("Error decrypting TLS Cert or no TLS Cert provided")
 		}
 		client.TlsCertificate = tlsCertificate
 
@@ -121,7 +121,7 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 		client.TlsKey = tlsKey
 
 		if client.SkipVertifyTLS {
-			log.DefaultLogger.Info("New kdb+ datasource config setup to skip TLS verification")
+			log.DefaultLogger.Debug("New kdb+ datasource config setup to skip TLS verification")
 		}
 
 		if client.WithCACert {
@@ -130,11 +130,11 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 				log.DefaultLogger.Error("Error decrypting CA Cert or no CA Cert provided")
 			}
 			client.CaCert = caCert
-			log.DefaultLogger.Info("Setting custom CA certificate...")
+			log.DefaultLogger.Debug("Setting custom CA certificate...")
 			tlsCaCert := x509.NewCertPool()
 			r := tlsCaCert.AppendCertsFromPEM([]byte(client.CaCert))
 			if !r {
-				log.DefaultLogger.Info("Error parsing custom CA certificate")
+				log.DefaultLogger.Error("Error parsing custom CA certificate")
 			}
 			tlsServerConfig.RootCAs = tlsCaCert
 		}
@@ -150,7 +150,7 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 	}
 	timeOutDuration, err := time.ParseDuration(client.Timeout + "ms")
 	if nil != err {
-		log.DefaultLogger.Info("Using default timeout")
+		log.DefaultLogger.Debug("Using default timeout")
 		timeOutDuration = time.Second
 	}
 	client.DialTimeout = timeOutDuration
@@ -178,9 +178,9 @@ func NewKdbDatasource(settings backend.DataSourceInstanceSettings) (instancemgmt
 }
 
 func (d *KdbDatasource) Dispose() {
-	log.DefaultLogger.Info("Dispose called")
+	log.DefaultLogger.Debug("Dispose called")
 	if d.IsOpen {
-		log.DefaultLogger.Info("Handle open when dispose called, closing handle")
+		log.DefaultLogger.Debug("Handle open when dispose called, closing handle")
 		err := d.CloseConnection()
 		if err != nil {
 			log.DefaultLogger.Error("Error closing KDB connection", err)
@@ -212,18 +212,18 @@ func (d *KdbDatasource) openConnection() error {
 	d.IsOpen = true
 
 	// making raw read channel
-	log.DefaultLogger.Info("Making raw response channel")
+	log.DefaultLogger.Debug("Making raw response channel")
 	d.rawReadChan = make(chan *kdbRawRead)
 
 	// start synchronous handle reader
-	log.DefaultLogger.Info("Beginning handle listener")
+	log.DefaultLogger.Debug("Beginning handle listener")
 	go d.KdbHandleListener()
 	return nil
 }
 
 func (d *KdbDatasource) closeConnection() error {
 	if !d.IsOpen {
-		log.DefaultLogger.Info(fmt.Sprintf("Connection to %s:%v already closed (hint: potentially closed at remote end?)", d.Host, d.Port))
+		log.DefaultLogger.Debug(fmt.Sprintf("Connection to %s:%v already closed (hint: potentially closed at remote end?)", d.Host, d.Port))
 		close(d.rawReadChan)
 		return nil
 	}
@@ -350,7 +350,7 @@ func (d *KdbDatasource) CheckHealth(_ context.Context, req *backend.CheckHealthR
 	if test.Type != -kdb.KJ {
 		status = backend.HealthStatusError
 		message = fmt.Sprintf("kdb+ result not of expected type; received type %v", test.Type)
-		log.DefaultLogger.Info(fmt.Sprintf("Response from kdb+ incorrect type. Received object: %v", test.Data))
+		log.DefaultLogger.Debug(fmt.Sprintf("Response from kdb+ incorrect type. Received object: %v", test.Data))
 		return &backend.CheckHealthResult{
 			Status:  status,
 			Message: message,

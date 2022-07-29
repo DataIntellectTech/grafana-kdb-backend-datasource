@@ -44,7 +44,7 @@ func (d *KdbDatasource) runKdbQuerySync(query *kdb.K, timeout time.Duration) (*k
 }
 
 func (d *KdbDatasource) syncQueryRunner() {
-	log.DefaultLogger.Info("Beginning synchronous query listener")
+	log.DefaultLogger.Debug("Beginning synchronous query listener")
 	var err error
 	// Open the kdb Handle
 	err = d.OpenConnection()
@@ -55,17 +55,17 @@ func (d *KdbDatasource) syncQueryRunner() {
 		select {
 		case signal := <-d.signals:
 			if signal == 3 {
-				log.DefaultLogger.Info("Returning from query runner")
+				log.DefaultLogger.Debug("Returning from query runner")
 				return
 			}
 		case query := <-d.syncQueue:
 			// If handle isn't open, attempt to open
 			if !d.IsOpen {
-				log.DefaultLogger.Info("Handle not open, opening new handle...")
+				log.DefaultLogger.Debug("Handle not open, opening new handle...")
 				err = d.OpenConnection()
 				// Return error if unable to open handle
 				if err != nil {
-					log.DefaultLogger.Info(fmt.Sprintf("Unable to open handle on-demand in syncQueryRunner: %v", err))
+					log.DefaultLogger.Error(fmt.Sprintf("Unable to open handle on-demand in syncQueryRunner: %v", err))
 					d.syncResChan <- &kdbSyncRes{result: nil, err: err, id: query.id}
 					continue
 				}
@@ -82,7 +82,7 @@ func (d *KdbDatasource) syncQueryRunner() {
 			case msg := <-d.rawReadChan:
 				d.syncResChan <- &kdbSyncRes{result: msg.result, err: msg.err, id: query.id}
 				if msg.err != nil && strings.Contains(msg.err.Error(), kdbEOF) {
-					log.DefaultLogger.Info("Closing rawReadChan within syncQueryRunner")
+					log.DefaultLogger.Debug("Closing rawReadChan within syncQueryRunner")
 					d.CloseConnection()
 				}
 			case <-time.After(query.timeout):
@@ -96,16 +96,16 @@ func (d *KdbDatasource) syncQueryRunner() {
 func (d *KdbDatasource) kdbHandleListener() {
 	for {
 		if !d.IsOpen {
-			log.DefaultLogger.Info("Handle not open, kdbHandleListener returning...")
+			log.DefaultLogger.Debug("Handle not open, kdbHandleListener returning...")
 			return
 		}
 		res, _, err := d.ReadConnection()
 		if err != nil {
-			log.DefaultLogger.Info(err.Error())
+			log.DefaultLogger.Debug(err.Error())
 			if strings.Contains(err.Error(), kdbEOF) {
-				log.DefaultLogger.Info("Handle read error, publishing error and returning from kdbHandleListener")
+				log.DefaultLogger.Debug("Handle read error, publishing error and returning from kdbHandleListener")
 				if d.IsOpen {
-					log.DefaultLogger.Info("d.IsOpen inside kdbHandleListener, publishing read error to kdbRawRead channel")
+					log.DefaultLogger.Debug("d.IsOpen inside kdbHandleListener, publishing read error to kdbRawRead channel")
 					d.IsOpen = false
 					d.rawReadChan <- &kdbRawRead{result: res, err: err}
 				}
